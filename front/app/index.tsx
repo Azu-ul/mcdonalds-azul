@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 0,
   },
   authButtonsContainer: {
-    flexDirection: 'row',
+    display: 'flex',
     gap: 8,
   },
   loginButton: {

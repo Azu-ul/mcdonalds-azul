@@ -34,11 +34,6 @@
           "autoVerify": true,
           "data": [
             {
-              "scheme": "https",
-              "host": "tu-dominio.com",
-              "pathPrefix": "/auth"
-            },
-            {
               "scheme": "mcdonalds-azul"
             }
           ],
