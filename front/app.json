@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "McDonald's App",
+    "slug": "mcdonalds-azul",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mcdonalds.azul",
+      "config": {
+        "googleSignIn": {
+          "reservedClientId": "com.googleusercontent.apps.TU_CLIENTE_ID_INVERTIDO"
+        }
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.mcdonalds.azul",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "tu-dominio.com",
+              "pathPrefix": "/auth"
+            },
+            {
+              "scheme": "mcdonalds-azul"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "googleServicesFile": "./google-services.json"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b8cdbf13-522a-40f5-b348-df650a52a7f2"
+      }
+    },
+    "scheme": "mcdonalds-azul"
+  }
+}
