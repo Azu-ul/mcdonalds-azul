@@ -9,6 +9,8 @@ import userRoutes from './routes/user.js';
 import adminRoutes from './routes/admin.js';
 import homeRoutes from './routes/home.js';
 import profileRoutes from './routes/profile.js';
+import flyersRoutes from './routes/flyers.js';
+
 import './config/passport.js';
 
 dotenv.config();
@@ -34,6 +36,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/flyers', flyersRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

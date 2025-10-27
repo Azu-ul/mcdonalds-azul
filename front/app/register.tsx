@@ -203,163 +203,166 @@ export default function Register() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
-        <View style={styles.card}>
-          {/* Logo McDonald's */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.logo}>M</Text>
-          </View>
-
-          <Text style={styles.title}>Crear Cuenta</Text>
-          <Text style={styles.subtitle}>Unite y empezá a disfrutar</Text>
-
-          <View style={isMobile ? styles.columnLayout : styles.rowLayout}>
-            <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
-              <Controller
-                control={control}
-                name="username"
-                defaultValue=""
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <>
-                    <TextInput
-                      style={[styles.input, errors.username && styles.inputError]}
-                      placeholder="Usuario"
-                      onChangeText={onChange}
-                      value={value}
-                      onBlur={onBlur}
-                      autoCapitalize="words"
-                      placeholderTextColor="#999"
-                    />
-                    {errors.username && <Text style={styles.error}>{errors.username.message}</Text>}
-                  </>
-                )}
-              />
+        {/* Contenedor escalado al 85% */}
+        <View style={styles.scaledContainer}>
+          <View style={styles.card}>
+            {/* Logo McDonald's */}
+            <View style={styles.logoContainer}>
+              <Text style={styles.logo}>M</Text>
             </View>
 
-            <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
-              <Controller
-                control={control}
-                name="full_name"
-                defaultValue=""
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <>
-                    <TextInput
-                      style={[styles.input, errors.full_name && styles.inputError]}
-                      placeholder="Nombre y apellido"
-                      onChangeText={onChange}
-                      value={value}
-                      onBlur={onBlur}
-                      autoCapitalize="words"
-                      placeholderTextColor="#999"
-                    />
-                    {errors.full_name && <Text style={styles.error}>{errors.full_name.message}</Text>}
-                  </>
-                )}
-              />
-            </View>
-          </View>
+            <Text style={styles.title}>Crear Cuenta</Text>
+            <Text style={styles.subtitle}>Unite y empezá a disfrutar</Text>
 
-          <Controller
-            control={control}
-            name="email"
-            defaultValue=""
-            render={({ field: { onChange, value, onBlur } }) => (
-              <>
-                <TextInput
-                  style={[styles.input, errors.email && styles.inputError]}
-                  placeholder="Email"
-                  keyboardType="email-address"
-                  onChangeText={onChange}
-                  value={value}
-                  onBlur={onBlur}
-                  autoCapitalize="none"
-                  placeholderTextColor="#999"
+            <View style={isMobile ? styles.columnLayout : styles.rowLayout}>
+              <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
+                <Controller
+                  control={control}
+                  name="username"
+                  defaultValue=""
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <>
+                      <TextInput
+                        style={[styles.input, errors.username && styles.inputError]}
+                        placeholder="Usuario"
+                        onChangeText={onChange}
+                        value={value}
+                        onBlur={onBlur}
+                        autoCapitalize="words"
+                        placeholderTextColor="#999"
+                      />
+                      {errors.username && <Text style={styles.error}>{errors.username.message}</Text>}
+                    </>
+                  )}
                 />
-                {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
-              </>
-            )}
-          />
+              </View>
 
-          <View style={isMobile ? styles.columnLayout : styles.rowLayout}>
-            <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
-              <Controller
-                control={control}
-                name="password"
-                defaultValue=""
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <>
-                    <TextInput
-                      style={[styles.input, errors.password && styles.inputError]}
-                      placeholder="Contraseña"
-                      secureTextEntry
-                      onChangeText={onChange}
-                      value={value}
-                      onBlur={onBlur}
-                      placeholderTextColor="#999"
-                    />
-                    {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
-                  </>
-                )}
-              />
+              <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
+                <Controller
+                  control={control}
+                  name="full_name"
+                  defaultValue=""
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <>
+                      <TextInput
+                        style={[styles.input, errors.full_name && styles.inputError]}
+                        placeholder="Nombre y apellido"
+                        onChangeText={onChange}
+                        value={value}
+                        onBlur={onBlur}
+                        autoCapitalize="words"
+                        placeholderTextColor="#999"
+                      />
+                      {errors.full_name && <Text style={styles.error}>{errors.full_name.message}</Text>}
+                    </>
+                  )}
+                />
+              </View>
             </View>
 
-            <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
-              <Controller
-                control={control}
-                name="password2"
-                defaultValue=""
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <>
-                    <TextInput
-                      style={[styles.input, errors.password2 && styles.inputError]}
-                      placeholder="Repetir contraseña"
-                      secureTextEntry
-                      onChangeText={onChange}
-                      value={value}
-                      onBlur={onBlur}
-                      onSubmitEditing={handleSubmit(onSubmit)}
-                      placeholderTextColor="#999"
-                    />
-                    {errors.password2 && <Text style={styles.error}>{errors.password2.message}</Text>}
-                  </>
-                )}
-              />
+            <Controller
+              control={control}
+              name="email"
+              defaultValue=""
+              render={({ field: { onChange, value, onBlur } }) => (
+                <>
+                  <TextInput
+                    style={[styles.input, errors.email && styles.inputError]}
+                    placeholder="Email"
+                    keyboardType="email-address"
+                    onChangeText={onChange}
+                    value={value}
+                    onBlur={onBlur}
+                    autoCapitalize="none"
+                    placeholderTextColor="#999"
+                  />
+                  {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
+                </>
+              )}
+            />
+
+            <View style={isMobile ? styles.columnLayout : styles.rowLayout}>
+              <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
+                <Controller
+                  control={control}
+                  name="password"
+                  defaultValue=""
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <>
+                      <TextInput
+                        style={[styles.input, errors.password && styles.inputError]}
+                        placeholder="Contraseña"
+                        secureTextEntry
+                        onChangeText={onChange}
+                        value={value}
+                        onBlur={onBlur}
+                        placeholderTextColor="#999"
+                      />
+                      {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
+                    </>
+                  )}
+                />
+              </View>
+
+              <View style={isMobile ? styles.fullWidth : styles.halfWidth}>
+                <Controller
+                  control={control}
+                  name="password2"
+                  defaultValue=""
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <>
+                      <TextInput
+                        style={[styles.input, errors.password2 && styles.inputError]}
+                        placeholder="Repetir contraseña"
+                        secureTextEntry
+                        onChangeText={onChange}
+                        value={value}
+                        onBlur={onBlur}
+                        onSubmitEditing={handleSubmit(onSubmit)}
+                        placeholderTextColor="#999"
+                      />
+                      {errors.password2 && <Text style={styles.error}>{errors.password2.message}</Text>}
+                    </>
+                  )}
+                />
+              </View>
             </View>
+
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#292929" />
+              ) : (
+                <Text style={styles.buttonText}>Crear cuenta</Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>o</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity style={styles.socialButton} onPress={handleGoogleRegister}>
+              <Image source={GoogleIcon} style={styles.googleIcon} />
+              <Text style={styles.socialButtonText}>Registrarse con Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => router.push('/signin')}>
+              <Text style={styles.link}>¿Ya tenés cuenta? <Text style={styles.linkBold}>Ingresá acá</Text></Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={loading}
+            style={styles.backButton}
+            onPress={() => router.push('/')}
           >
-            {loading ? (
-              <ActivityIndicator color="#292929" />
-            ) : (
-              <Text style={styles.buttonText}>Crear cuenta</Text>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>o</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity style={styles.socialButton} onPress={handleGoogleRegister}>
-            <Image source={GoogleIcon} style={styles.googleIcon} />
-            <Text style={styles.socialButtonText}>Registrarse con Google</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => router.push('/signin')}>
-            <Text style={styles.link}>¿Ya tenés cuenta? <Text style={styles.linkBold}>Ingresá acá</Text></Text>
+            <Text style={styles.backButtonText}>← Volver al inicio</Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.push('/')}
-        >
-          <Text style={styles.backButtonText}>← Volver al inicio</Text>
-        </TouchableOpacity>
 
         <CustomModal
           visible={modalVisible}
@@ -376,14 +379,23 @@ export default function Register() {
 
 const styles = StyleSheet.create({
   scrollContainer: {
-    flexGrow: 1
+    flexGrow: 1,
+    minHeight: '100%',
   },
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start', // Cambiado de 'center' a 'flex-start'
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
-    padding: 20
+    paddingVertical: 10, // Reducido el padding vertical
+    paddingHorizontal: 20,
+    minHeight: '100%',
+  },
+  scaledContainer: {
+    transform: [{ scale: 0.80 }],
+    width: '100%',
+    alignItems: 'center',
+    marginTop: -50, // Agregado margen superior
   },
   card: {
     width: '100%',

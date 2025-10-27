@@ -13,12 +13,13 @@ type FlyerCarouselProps = {
 };
 
 const { width } = Dimensions.get('window');
-const FLYER_WIDTH = width * 0.85;
+const FLYER_WIDTH = width * 0.3;
+const FLYER_HEIGHT = FLYER_WIDTH;
 
 export default function FlyerCarousel({ flyers, onFlyerPress }: FlyerCarouselProps) {
   return (
-    <ScrollView 
-      horizontal 
+    <ScrollView
+      horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
       snapToInterval={FLYER_WIDTH + 16}
@@ -27,7 +28,7 @@ export default function FlyerCarousel({ flyers, onFlyerPress }: FlyerCarouselPro
       {flyers.map((flyer) => (
         <TouchableOpacity
           key={flyer.id}
-          style={[styles.flyerCard, { width: FLYER_WIDTH }]}
+          style={[styles.flyerCard, { width: FLYER_WIDTH, height: FLYER_HEIGHT }]}
           onPress={() => onFlyerPress(flyer)}
         >
           <Image
@@ -50,8 +51,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 16,
   },
+  flyerImage: {
+    width: '100%',
+    height: '100%',
+  },
   flyerCard: {
-    height: 180,
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -59,10 +63,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
-  },
-  flyerImage: {
-    width: '100%',
-    height: '100%',
   },
   flyerOverlay: {
     position: 'absolute',

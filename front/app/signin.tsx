@@ -163,91 +163,94 @@ export default function Login() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        {/* Logo McDonald's */}
-        <View style={styles.logoContainer}>
-          <Text style={styles.logo}>M</Text>
+      {/* Contenedor escalado al 85% */}
+      <View style={styles.scaledContainer}>
+        <View style={styles.card}>
+          {/* Logo McDonald's */}
+          <View style={styles.logoContainer}>
+            <Text style={styles.logo}>M</Text>
+          </View>
+
+          <Text style={styles.title}>¡Bienvenido!</Text>
+          <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
+
+          <Controller
+            control={control}
+            name="email"
+            defaultValue=""
+            render={({ field: { onChange, value, onBlur } }) => (
+              <>
+                <TextInput
+                  placeholder="Email"
+                  style={[styles.input, errors.email && styles.inputError]}
+                  onChangeText={onChange}
+                  value={value}
+                  onBlur={onBlur}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholderTextColor="#999"
+                />
+                {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
+              </>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="password"
+            defaultValue=""
+            render={({ field: { onChange, value, onBlur } }) => (
+              <>
+                <TextInput
+                  placeholder="Contraseña"
+                  style={[styles.input, errors.password && styles.inputError]}
+                  secureTextEntry
+                  onChangeText={onChange}
+                  value={value}
+                  onBlur={onBlur}
+                  onSubmitEditing={handleSubmit(onSubmit)}
+                  placeholderTextColor="#999"
+                />
+                {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
+              </>
+            )}
+          />
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Ingresar</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
+            <Image source={GoogleIcon} style={styles.googleIcon} />
+            <Text style={styles.socialButtonText}>Continuar con Google</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.push('/register')}>
+            <Text style={styles.link}>¿No tenés cuenta? <Text style={styles.linkBold}>Registrate</Text></Text>
+          </TouchableOpacity>
         </View>
-
-        <Text style={styles.title}>¡Bienvenido!</Text>
-        <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
-
-        <Controller
-          control={control}
-          name="email"
-          defaultValue=""
-          render={({ field: { onChange, value, onBlur } }) => (
-            <>
-              <TextInput
-                placeholder="Email"
-                style={[styles.input, errors.email && styles.inputError]}
-                onChangeText={onChange}
-                value={value}
-                onBlur={onBlur}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholderTextColor="#999"
-              />
-              {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
-            </>
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="password"
-          defaultValue=""
-          render={({ field: { onChange, value, onBlur } }) => (
-            <>
-              <TextInput
-                placeholder="Contraseña"
-                style={[styles.input, errors.password && styles.inputError]}
-                secureTextEntry
-                onChangeText={onChange}
-                value={value}
-                onBlur={onBlur}
-                onSubmitEditing={handleSubmit(onSubmit)}
-                placeholderTextColor="#999"
-              />
-              {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
-            </>
-          )}
-        />
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={loading}
+          style={styles.backButton}
+          onPress={() => router.push('/')}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Ingresar</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>o</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
-          <Image source={GoogleIcon} style={styles.googleIcon} />
-          <Text style={styles.socialButtonText}>Continuar con Google</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push('/register')}>
-          <Text style={styles.link}>¿No tenés cuenta? <Text style={styles.linkBold}>Registrate</Text></Text>
+          <Text style={styles.backButtonText}>← Volver al inicio</Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.push('/')}
-      >
-        <Text style={styles.backButtonText}>← Volver al inicio</Text>
-      </TouchableOpacity>
 
       <CustomModal
         visible={modalVisible}
@@ -268,6 +271,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
     padding: 20
+  },
+  scaledContainer: {
+    transform: [{ scale: 0.85 }],
+    width: '100%',
+    alignItems: 'center',
   },
   card: {
     width: '100%',

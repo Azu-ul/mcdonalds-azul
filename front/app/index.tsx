@@ -29,6 +29,14 @@ type CartItem = {
   total: number;
 };
 
+type Flyer = {
+  id: number;
+  title: string;
+  description?: string;
+  image: string;
+  link?: string;
+};
+
 const CATEGORIES = [
   { id: 1, name: 'McCombos', icon: '🍔' },
   { id: 2, name: 'Hamburguesas', icon: '🍔' },
@@ -45,13 +53,6 @@ const CATEGORIES = [
   { id: 13, name: 'Comidas McCafé', icon: '🥐' },
 ];
 
-const FLYERS = [
-  { id: 1, image: 'https://via.placeholder.com/400x200/FFBC0D/292929?text=McCombo+Mediano+$14499', title: 'McCombo Mediano' },
-  { id: 2, image: 'https://via.placeholder.com/400x200/DA291C/fff?text=2+Cajita+Feliz+20%25+OFF', title: '2 Cajita Feliz' },
-  { id: 3, image: 'https://via.placeholder.com/400x200/27AE60/fff?text=McFlurry+Oreo+$4500', title: 'McFlurry Oreo' },
-  { id: 4, image: 'https://via.placeholder.com/400x200/292929/FFBC0D?text=AutoMac+30%25+OFF', title: 'AutoMac' },
-];
-
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
@@ -60,11 +61,14 @@ export default function Home() {
   const [address, setAddress] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('McCombos');
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [flyers, setFlyers] = useState<Flyer[]>([]);
+
 
   useEffect(() => {
     loadProducts();
     loadUserAddress();
     loadCart();
+    loadFlyers();
   }, []);
 
   const loadProducts = async () => {
@@ -97,6 +101,24 @@ export default function Home() {
     }
   };
 
+  const loadFlyers = async () => {
+    try {
+      const res = await api.get('/flyers');
+      const fetchedFlyers: Flyer[] = res.data.flyers || [];
+      console.log(
+        'Flyers cargados:',
+        fetchedFlyers.map((f: Flyer) => f.image) // <-- ahora f tiene tipo Flyer
+      );
+      // <-- esto loguea todas las URLs
+      setFlyers(fetchedFlyers);
+    } catch (error) {
+      console.error('Error loading flyers:', error);
+      setFlyers([]);
+    }
+  };
+
+
+
   const handleProductPress = (product: Product) => {
     router.push({
       pathname: '/product',
@@ -112,7 +134,7 @@ export default function Home() {
       console.error('Error loading categories:', error);
     }
   };
-  
+
   const handleCategoryPress = (categoryName: string) => {
     setSelectedCategory(categoryName);
   };
@@ -142,7 +164,7 @@ export default function Home() {
         {/* Header con logo y botones de autenticación */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>M</Text>
+            <Text style={styles.logo}>Mc Donald's Azul</Text>
           </View>
 
           {!isAuthenticated ? (
@@ -199,12 +221,12 @@ export default function Home() {
 
         {/* Título de Promociones */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>🔥 Promociones</Text>
+          <Text style={styles.sectionTitle}>Novedades</Text>
         </View>
 
         {/* Carrusel de Flyers */}
         <FlyerCarousel
-          flyers={FLYERS}
+          flyers={flyers}
           onFlyerPress={(flyer) => {
             console.log('Flyer pressed:', flyer);
           }}

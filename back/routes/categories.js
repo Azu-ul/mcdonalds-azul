@@ -1,9 +1,9 @@
 // ============================================
 // routes/categories.js
 // ============================================
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
 const router = express.Router();
-const db = require('../config/database');
 
 /**
  * @route   GET /api/categories

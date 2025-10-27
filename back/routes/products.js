@@ -2,10 +2,11 @@
 // ============================================
 // routes/products.js
 // ============================================
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
 const router = express.Router();
-const db = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+import { authenticateToken } from '../middleware/auth.js';
+
 
 /**
  * @route   GET /api/products
@@ -149,4 +150,4 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
