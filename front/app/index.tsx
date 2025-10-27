@@ -70,7 +70,7 @@ export default function Home() {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/products');
+      const res = await api.get('/home/products');
       setProducts(res.data.products || res.data || []);
     } catch (error) {
       console.error('Error loading products:', error);
@@ -104,6 +104,15 @@ export default function Home() {
     });
   };
 
+  const loadCategories = async () => {
+    try {
+      const res = await api.get('/home/categories');
+      // Usar res.data.categories si quieres reemplazar CATEGORIES hardcodeado
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
+  
   const handleCategoryPress = (categoryName: string) => {
     setSelectedCategory(categoryName);
   };
@@ -135,17 +144,17 @@ export default function Home() {
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>M</Text>
           </View>
-          
+
           {!isAuthenticated ? (
             <View style={styles.authButtonsContainer}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.loginButton}
                 onPress={() => router.push('/signin')}
               >
                 <Text style={styles.loginButtonText}>Ingresar</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.registerButton}
                 onPress={() => router.push('/register')}
               >
@@ -162,13 +171,13 @@ export default function Home() {
         </View>
 
         {/* Barra de Dirección */}
-        <AddressBar 
+        <AddressBar
           address={address}
           onPress={() => router.push('/restaurants')}
         />
 
         {/* Carrusel de Categorías */}
-        <CategoryCarousel 
+        <CategoryCarousel
           categories={CATEGORIES}
           selectedCategory={selectedCategory}
           onCategoryPress={handleCategoryPress}
@@ -183,7 +192,7 @@ export default function Home() {
         </View>
 
         {/* Carrusel de Productos McCombos */}
-        <ProductCarousel 
+        <ProductCarousel
           products={filteredProducts}
           onProductPress={handleProductPress}
         />
@@ -194,7 +203,7 @@ export default function Home() {
         </View>
 
         {/* Carrusel de Flyers */}
-        <FlyerCarousel 
+        <FlyerCarousel
           flyers={FLYERS}
           onFlyerPress={(flyer) => {
             console.log('Flyer pressed:', flyer);

@@ -17,10 +17,12 @@ type ProductCarouselProps = {
 };
 
 export default function ProductCarousel({ products, onProductPress }: ProductCarouselProps) {
-  const getImageUrl = (imageUrl: string) => {
+  const getImageUrl = (imageUrl?: string | null) => {
+    if (!imageUrl) return ''; // o un placeholder
     if (imageUrl.startsWith('http')) return imageUrl;
     return `${API_URL.replace('/api', '')}${imageUrl}`;
   };
+
 
   const formatPrice = (price: number) => {
     return `$ ${price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -35,8 +37,8 @@ export default function ProductCarousel({ products, onProductPress }: ProductCar
   }
 
   return (
-    <ScrollView 
-      horizontal 
+    <ScrollView
+      horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
     >
@@ -53,7 +55,7 @@ export default function ProductCarousel({ products, onProductPress }: ProductCar
               resizeMode="cover"
             />
           </View>
-          
+
           <View style={styles.productInfo}>
             <Text style={styles.productName} numberOfLines={2}>
               {product.name}
@@ -91,6 +93,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    flexDirection: 'column',
+    flex: 1,
   },
   imageContainer: {
     width: '100%',
@@ -125,14 +129,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#292929',
+    marginTop: 'auto',
   },
   addButton: {
     backgroundColor: '#FFBC0D',
     padding: 12,
     alignItems: 'center',
     margin: 12,
-    marginTop: 0,
     borderRadius: 8,
+    marginTop: 'auto',
   },
   addButtonText: {
     color: '#292929',

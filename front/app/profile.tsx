@@ -157,7 +157,7 @@ export default function Profile() {
       const token = await getToken();
       if (!token) return router.replace('/');
 
-      const res = await api.get('/user/profile', {
+      const res = await api.get('/profile', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const userData = res.data.user;
@@ -186,7 +186,7 @@ export default function Profile() {
 
     try {
       updateLoadingState('updatingProfile', true);
-      const res = await api.put('/user/username', { username: username.trim() });
+      const res = await api.put('/profile/username', { username: username.trim() });
       const updatedUser = { ...user, username: res.data.user.username };
       setUser(updatedUser as User);
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
@@ -214,7 +214,7 @@ export default function Profile() {
         return;
       }
 
-      const res = await api.put('/user/profile', payload);
+      const res = await api.put('/profile', payload);
       const updatedUser = res.data.user;
       setUser(updatedUser);
       setValue('email', updatedUser.email || '');
@@ -247,7 +247,7 @@ export default function Profile() {
       }
 
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/user/profile-image`, {
+      const response = await fetch(`${API_URL}/profile/image`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -322,7 +322,7 @@ export default function Profile() {
       const { latitude, longitude } = location.coords;
       
       const addressStr = await getAddressFromCoords(latitude, longitude);
-      await api.put('/user/location', { latitude, longitude, address: addressStr });
+      await api.put('/profile/location', { latitude, longitude, address: addressStr });
 
       const updatedUser = { ...user, latitude, longitude, address: addressStr };
       setUser(updatedUser as User);
@@ -369,7 +369,7 @@ export default function Profile() {
 
     try {
       updateLoadingState('updatingLocation', true);
-      await api.put('/user/location', {
+      await api.put('/profile/location', {
         latitude: user?.latitude || 0,
         longitude: user?.longitude || 0,
         address: address.trim()
@@ -395,7 +395,7 @@ export default function Profile() {
 
   const handleDeleteAccount = async () => {
     try {
-      await api.delete('/user/account');
+      await api.delete('/profile');
       updateModal('deleteAccount', false);
       await logout();
       Alert.alert('Cuenta eliminada', 'Tu cuenta ha sido eliminada permanentemente');
