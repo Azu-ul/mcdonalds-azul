@@ -2,13 +2,11 @@ import express from 'express';
 import pool from '../db.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import passport from 'passport';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Función para generar token JWT
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -21,7 +19,7 @@ const generateToken = (user) => {
   );
 };
 
-// Registro tradicional - Solo validar email único
+// Registro tradicional
 router.post('/register', async (req, res) => {
   try {
     const { username, email, password, full_name } = req.body;
@@ -30,7 +28,6 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
-    // Solo verificar si el EMAIL existe (username puede repetirse)
     const [existing] = await pool.query(
       'SELECT id FROM users WHERE email = ?',
       [email]
@@ -67,7 +64,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login tradicional - Solo con EMAIL (no username)
+// Login tradicional
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -76,7 +73,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email y contraseña son requeridos' });
     }
 
-    // Buscar solo por email
     const [users] = await pool.query(
       `SELECT id, username, email, password_hash, full_name, phone, address, 
               profile_image_url, auth_provider 
@@ -117,221 +113,104 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Google OAuth - Iniciar autenticación
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-  session: false
-}));
+// En tu archivo de rutas de auth (backend)
+router.post('/google', async (req, res) => {
+  try {
+    const { id_token } = req.body;
 
-// Reemplazar SOLO el callback de Google:
-router.get('/google/callback', (req, res, next) => {
-  passport.authenticate('google', { session: false }, (err, user, info) => {
-    console.log('📥 Google callback:', { err: err?.message, user: !!user, info });
-
-    // Si hay error y es de cuenta existente con diferente proveedor
-    if (err && err.message === 'EMAIL_EXISTS_WITH_DIFFERENT_PROVIDER') {
-      const provider = err.provider || 'local';
-      console.log('❌ Account exists with different provider:', provider);
-
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Cuenta existente</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          </head>
-          <body>
-            <script>
-              console.log('Sending account_exists message to opener');
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'GOOGLE_AUTH_ERROR',
-                  error: 'account_exists',
-                  provider: '${provider}'
-                }, '*');
-                setTimeout(() => window.close(), 500);
-              } else {
-                // Para móvil, redirigir con el scheme
-                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                if (isMobile) {
-                  window.location.href = 'rn3azul://?error=email_conflict&provider=${provider}';
-                } else {
-                  window.location.href = '${process.env.CLIENT_URL || 'http://localhost:3000'}?error=email_conflict&provider=${provider}';
-                }
-              }
-            </script>
-          </body>
-        </html>
-      `);
+    if (!id_token) {
+      return res.status(400).json({ error: 'Token de Google requerido' });
     }
 
-    // Si hay otro tipo de error
-    if (err || !user) {
-      console.log('❌ Authentication failed:', err?.message);
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'GOOGLE_AUTH_ERROR',
-                  error: 'auth_failed'
-                }, '*');
-                setTimeout(() => window.close(), 500);
-              } else {
-                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                if (isMobile) {
-                  window.location.href = 'rn3azul://?error=auth_failed';
-                } else {
-                  window.location.href = '${process.env.CLIENT_URL || 'http://localhost:3000'}?error=auth_failed';
-                }
-              }
-            </script>
-          </body>
-        </html>
-      `);
+    // Verificar el token con Google
+    const response = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${id_token}`);
+
+    if (!response.ok) {
+      return res.status(401).json({ error: 'Token de Google inválido' });
     }
 
-    // Si todo está bien, generar token y enviar respuesta exitosa
-    try {
-      const token = generateToken(user);
-      const userData = encodeURIComponent(JSON.stringify(user));
+    const googleData = await response.json();
 
-      console.log('✅ Authentication successful for:', user.email);
-
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Autenticación exitosa</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                background-color: #FFF5F3;
-                padding: 16px;
-              }
-              .card {
-                background: white;
-                padding: 40px 30px;
-                border-radius: 14px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-                text-align: center;
-                max-width: 340px;
-                width: 100%;
-              }
-              .checkmark {
-                width: 70px;
-                height: 70px;
-                margin: 0 auto 20px;
-                background-color: #FA8072;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: scaleIn 0.3s ease-out;
-              }
-              .checkmark::after {
-                content: '✓';
-                font-size: 40px;
-                color: white;
-                font-weight: bold;
-              }
-              h2 {
-                color: #FA8072;
-                font-size: 24px;
-                margin-bottom: 12px;
-              }
-              p { color: #666; font-size: 14px; margin-bottom: 24px; }
-              .spinner {
-                width: 40px;
-                height: 40px;
-                border: 3px solid #FFB6A3;
-                border-top-color: #FA8072;
-                border-radius: 50%;
-                animation: spin 0.8s linear infinite;
-                margin: 0 auto;
-              }
-              @keyframes spin { to { transform: rotate(360deg); } }
-              @keyframes scaleIn {
-                from { transform: scale(0); opacity: 0; }
-                to { transform: scale(1); opacity: 1; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="card">
-              <div class="checkmark"></div>
-              <h2>¡Autenticación exitosa!</h2>
-              <p>Redirigiendo a tu cuenta...</p>
-              <div class="spinner"></div>
-            </div>
-            <script>
-              console.log('Sending success message');
-              try {
-                if (window.opener) {
-                  // Para popup en web
-                  window.opener.postMessage({
-                    type: 'GOOGLE_AUTH_SUCCESS',
-                    token: '${token}',
-                    user: '${userData}'
-                  }, '*');
-                  setTimeout(() => window.close(), 800);
-                } else {
-                  // Para móvil o web sin popup
-                  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                  if (isMobile) {
-                    window.location.href = 'rn3azul://?token=${token}&user=${userData}';
-                  } else {
-                    window.location.href = '${process.env.CLIENT_URL || 'http://localhost:3000'}?token=${token}&user=${userData}';
-                  }
-                }
-              } catch (error) {
-                console.error('Error:', error);
-                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                if (isMobile) {
-                  window.location.href = 'rn3azul://?error=auth_failed';
-                } else {
-                  window.location.href = '${process.env.CLIENT_URL || 'http://localhost:3000'}?error=auth_failed';
-                }
-              }
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error('❌ Error generating token:', error);
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'GOOGLE_AUTH_ERROR',
-                  error: 'auth_failed'
-                }, '*');
-                setTimeout(() => window.close(), 500);
-              } else {
-                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                if (isMobile) {
-                  window.location.href = 'rn3azul://?error=auth_failed';
-                } else {
-                  window.location.href = '${process.env.CLIENT_URL || 'http://localhost:3000'}?error=auth_failed';
-                }
-              }
-            </script>
-          </body>
-        </html>
-      `);
+    // Validaciones importantes
+    if (googleData.aud !== process.env.GOOGLE_CLIENT_ID) {
+      return res.status(401).json({ error: 'Token no válido para esta aplicación' });
     }
-  })(req, res, next);
+
+    if (googleData.exp * 1000 < Date.now()) {
+      return res.status(401).json({ error: 'Token expirado' });
+    }
+
+    const email = googleData.email;
+    const providerId = googleData.sub;
+    const profileImageUrl = googleData.picture;
+
+    // Verificar si el usuario ya existe
+    const [existingUsers] = await pool.query(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
+
+    let user;
+
+    if (existingUsers.length > 0) {
+      user = existingUsers[0];
+
+      // Si el usuario existe pero con auth local
+      if (user.auth_provider === 'local') {
+        return res.status(409).json({
+          error: 'Este email ya está registrado con email y contraseña. Por favor inicia sesión de esa manera.'
+        });
+      }
+
+      // Actualizar datos del usuario de Google
+      await pool.query(
+        `UPDATE users SET 
+          profile_image_url = ?,
+          updated_at = NOW()
+        WHERE id = ?`,
+        [profileImageUrl, user.id]
+      );
+    } else {
+      // Crear nuevo usuario
+      const username = googleData.email.split('@')[0] + '_' + providerId.substring(0, 8);
+      const fullName = googleData.name || googleData.email.split('@')[0];
+
+      const [result] = await pool.query(
+        `INSERT INTO users 
+        (username, email, full_name, profile_image_url, auth_provider, provider_id, is_verified)
+        VALUES (?, ?, ?, ?, 'google', ?, TRUE)`,
+        [username, email, fullName, profileImageUrl, providerId]
+      );
+
+      user = {
+        id: result.insertId,
+        username,
+        email,
+        full_name: fullName,
+        profile_image_url: profileImageUrl,
+        auth_provider: 'google'
+      };
+    }
+
+    const token = generateToken(user);
+
+    res.json({
+      message: 'Login con Google exitoso',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        full_name: user.full_name,
+        profile_image_url: user.profile_image_url,
+        auth_provider: 'google'
+      },
+      token
+    });
+
+  } catch (error) {
+    console.error('Error en Google OAuth:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // Obtener información del usuario autenticado

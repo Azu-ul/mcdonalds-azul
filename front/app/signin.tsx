@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Image, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Image, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import api, { API_URL } from '../config/api';
-import { Platform } from 'react-native';
+import api from '../config/api';
 import GoogleIcon from '../assets/google-icon.png';
 import CustomModal from './components/CustomModal';
 import { useAuth } from './context/AuthContext';
@@ -29,79 +29,128 @@ const schema = yup.object({
 
 export default function Login() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const { login: authLogin } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [modalTitle, setModalTitle] = useState('Aviso');
   const [loading, setLoading] = useState(false);
+  const [processingAuth, setProcessingAuth] = useState(false);
+  const [urlChecked, setUrlChecked] = useState(false);
+
+  // Configuración SIMPLIFICADA para Google Auth
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    // Para Android, usar solo el Android Client ID
+    clientId: Platform.OS === 'android' 
+      ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
+      : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: ['openid', 'profile', 'email'],
+    // Dejar que Expo maneje automáticamente el redirectUri
+  });
+
+  console.log('📱 Platform:', Platform.OS);
+  console.log('🔑 Client ID configurado:', Platform.OS === 'android' 
+    ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID 
+    : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(schema),
     mode: 'onTouched'
   });
 
+  // Para mobile - manejar respuesta de Google
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      if (params.token && params.user) {
-        handleOAuthCallback(params.token as string, params.user as string);
-      }
-      if (params.error) {
-        if (params.error === 'email_conflict') {
-          const provider = params.provider as string;
-          setModalTitle('Cuenta Existente');
-          setModalMessage(
-            `Este email ya está registrado con ${provider === 'local' ? 'contraseña' : 'Google'}. ` +
-            `Por favor inicia sesión con ${provider === 'local' ? 'tu contraseña' : 'Google'}.`
-          );
-        } else {
-          setModalTitle('Error');
-          setModalMessage('No se pudo completar la autenticación');
-        }
-        setModalVisible(true);
-      }
-    }
-  }, [params]);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleMessage = (event: MessageEvent) => {
-        const clientUrl = API_URL.replace('/api', '');
-        if (event.origin !== clientUrl && event.origin !== window.location.origin) {
-          console.warn('Mensaje de origen no confiable:', event.origin);
-          return;
-        }
-
-        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          handleOAuthCallback(event.data.token, event.data.user);
-        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-          setModalTitle('Error');
-          setModalMessage('No se pudo completar la autenticación con Google');
-          setModalVisible(true);
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-      return () => window.removeEventListener('message', handleMessage);
-    }
-  }, []);
-
-  const handleOAuthCallback = async (token: string, userStr: string) => {
-    try {
-      const user = JSON.parse(decodeURIComponent(userStr));
+    console.log('🔍 Respuesta de Google:', response);
+    
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      console.log('✅ Autenticación exitosa');
       
-      const rolesRes = await api.get(`/user/${user.id}/roles`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      user.roles = rolesRes.data.roles || [];
+      if (authentication?.idToken) {
+        handleGoogleAuth(authentication.idToken);
+      } else {
+        console.error('❌ No se encontró idToken en la respuesta');
+      }
+    } else if (response?.type === 'error') {
+      console.error('❌ Error en autenticación Google:', response.error);
+      setModalTitle('Error');
+      setModalMessage(`Error: ${response.error?.message || 'Revisa la configuración de Google OAuth'}`);
+      setModalVisible(true);
+      setLoading(false);
+    }
+  }, [response]);
+
+  // Para web - verificar URL
+  useEffect(() => {
+    if (Platform.OS === 'web' && !urlChecked) {
+      checkURLForToken();
+    }
+  }, [urlChecked]);
+
+  const checkURLForToken = () => {
+    if (window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const idToken = hashParams.get('id_token');
+      
+      if (idToken) {
+        console.log('✅ Token encontrado en URL');
+        setUrlChecked(true);
+        handleGoogleAuth(idToken);
+        return;
+      }
+    }
+    setUrlChecked(true);
+  };
+
+  const handleGoogleAuth = async (idToken: string) => {
+    if (processingAuth) {
+      console.log('⚠️ Autenticación ya en proceso');
+      return;
+    }
+
+    try {
+      setProcessingAuth(true);
+      setLoading(true);
+      console.log('🚀 Procesando autenticación Google...');
+      
+      // Limpiar URL (solo web)
+      if (Platform.OS === 'web') {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      
+      const res = await api.post('/auth/google', { id_token: idToken });
+      const { token, user } = res.data;
+      console.log('✅ Usuario autenticado:', user.email);
+      
+      // Obtener roles
+      try {
+        const rolesRes = await api.get(`/user/${user.id}/roles`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        user.roles = rolesRes.data.roles || [];
+      } catch (rolesError) {
+        console.warn('No se pudieron obtener los roles:', rolesError);
+        user.roles = [];
+      }
       
       await authLogin(token, user);
+      console.log('🔀 Redirigiendo a home...');
       router.replace('/');
-    } catch (error) {
-      console.error('Error al procesar autenticación:', error);
+      
+    } catch (err: any) {
+      console.error('❌ Error en autenticación Google:', err);
+      let message = 'Error al autenticar con Google';
+      
+      if (err?.response?.data?.error) {
+        message = err.response.data.error;
+      }
+      
       setModalTitle('Error');
-      setModalMessage('Error al procesar autenticación');
+      setModalMessage(message);
       setModalVisible(true);
+      
+    } finally {
+      setLoading(false);
+      setProcessingAuth(false);
     }
   };
 
@@ -128,45 +177,77 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLoginWeb = () => {
+    console.log('🔗 Iniciando Google OAuth para web...');
+    
+    const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    const redirectUri = window.location.origin;
+    const scope = 'openid profile email';
+    const responseType = 'id_token';
+    const nonce = Math.random().toString(36).substring(7);
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${clientId}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=${responseType}&` +
+      `scope=${encodeURIComponent(scope)}&` +
+      `nonce=${nonce}&` +
+      `prompt=select_account`;
+
+    // Redirigir en la misma ventana
+    window.location.href = authUrl;
+  };
+
+  const handleGoogleLoginMobile = async () => {
     try {
-      if (Platform.OS === 'web') {
-        const width = 500;
-        const height = 600;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-
-        const popup = window.open(
-          `${API_URL}/auth/google`,
-          'Google Login',
-          `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
-        );
-
-        if (!popup) {
-          setModalTitle('Error');
-          setModalMessage('No se pudo abrir la ventana de autenticación. Verifica que no estés bloqueando popups.');
-          setModalVisible(true);
-        }
-      } else {
-        const result = await WebBrowser.openAuthSessionAsync(
-          `${API_URL}/auth/google`,
-          'rn3azul://'
-        );
+      console.log('📱 Iniciando Google OAuth en mobile...');
+      console.log('Request disponible:', !!request);
+      
+      if (!request) {
+        console.log('⚠️ Request no disponible');
+        setModalTitle('Error');
+        setModalMessage('La autenticación no está disponible en este momento');
+        setModalVisible(true);
+        setLoading(false);
+        return;
       }
+      
+      await promptAsync();
+      
     } catch (error) {
-      console.error('Error en Google login:', error);
+      console.error('❌ Error al iniciar Google OAuth:', error);
       setModalTitle('Error');
-      setModalMessage('No se pudo iniciar sesión con Google');
+      setModalMessage('Error al iniciar la autenticación con Google');
       setModalVisible(true);
+      setLoading(false);
     }
   };
 
+  const handleGoogleLogin = () => {
+    console.log('🎯 Iniciando login con Google, plataforma:', Platform.OS);
+    setLoading(true);
+    
+    if (Platform.OS === 'web') {
+      handleGoogleLoginWeb();
+    } else {
+      handleGoogleLoginMobile();
+    }
+  };
+
+  // Mostrar loader durante la autenticación automática
+  if (processingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFBC0D" />
+        <Text style={styles.loadingText}>Iniciando sesión con Google...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Contenedor escalado al 85% */}
       <View style={styles.scaledContainer}>
         <View style={styles.card}>
-          {/* Logo McDonald's */}
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>M</Text>
           </View>
@@ -234,9 +315,18 @@ export default function Login() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
+          <TouchableOpacity 
+            style={[
+              styles.socialButton, 
+              (loading || !request) && styles.buttonDisabled
+            ]} 
+            onPress={handleGoogleLogin}
+            disabled={loading || !request}
+          >
             <Image source={GoogleIcon} style={styles.googleIcon} />
-            <Text style={styles.socialButtonText}>Continuar con Google</Text>
+            <Text style={styles.socialButtonText}>
+              {loading ? 'Cargando...' : 'Continuar con Google'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.push('/register')}>
@@ -264,6 +354,7 @@ export default function Login() {
   );
 }
 
+// Los estilos se mantienen igual...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -411,5 +502,16 @@ const styles = StyleSheet.create({
     color: '#DA291C',
     fontSize: 15,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
   },
 });
