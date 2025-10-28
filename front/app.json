@@ -2,6 +2,7 @@
   "expo": {
     "name": "McDonald's App",
     "slug": "mcdonalds-azul",
+    "owner": "azulsofia",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -15,34 +16,14 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mcdonalds.azul",
-      "config": {
-        "googleSignIn": {
-          "reservedClientId": "com.googleusercontent.apps.TU_CLIENTE_ID_INVERTIDO"
-        }
-      }
+      "bundleIdentifier": "com.mcdonalds.azul"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.mcdonalds.azul",
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "mcdonalds-azul"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
-      ]
+      "package": "com.mcdonalds.azul"
     },
     "extra": {
       "eas": {

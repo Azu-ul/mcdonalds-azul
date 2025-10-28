@@ -47,13 +47,13 @@ export default function Login() {
     console.log('👤 Owner:', Constants.expoConfig?.owner);
     console.log('📛 Slug:', Constants.expoConfig?.slug);
     console.log('🔗 Scheme:', Constants.expoConfig?.scheme);
-    
+
     // Calcular redirect URI manualmente
     const owner = Constants.expoConfig?.owner || 'anonymous';
     const slug = Constants.expoConfig?.slug || 'my-app';
     const expoRedirectUri = `https://auth.expo.io/@${owner}/${slug}`;
     console.log('🎯 Calculated Expo Redirect URI:', expoRedirectUri);
-    
+
     // URL actual (para web)
     if (Platform.OS === 'web') {
       console.log('🌐 Current URL:', window.location.href);
@@ -65,8 +65,13 @@ export default function Login() {
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     scopes: ['openid', 'profile', 'email'],
-    // NO especificar redirectUri - dejar que Expo lo maneje automáticamente
   });
+
+  useEffect(() => {
+    if (request) {
+      console.log('🎯 REDIRECT URI REAL:', request.redirectUri);
+    }
+  }, [request]);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(schema),
@@ -76,23 +81,23 @@ export default function Login() {
   // Para mobile - manejar respuesta de Google
   useEffect(() => {
     console.log('🔍 Google Response:', response);
-    
+
     if (response?.type === 'success') {
       const { authentication } = response;
       console.log('✅ Authentication success');
-      
+
       if (authentication?.idToken) {
         handleGoogleAuth(authentication.idToken);
       }
     } else if (response?.type === 'error') {
       console.error('❌ Google Auth Error:', response.error);
-      
+
       // Mostrar error detallado
       let errorMessage = 'Error de autenticación con Google';
       if (response.error?.message) {
         errorMessage += `: ${response.error.message}`;
       }
-      
+
       setModalTitle('Error de Autenticación');
       setModalMessage(errorMessage);
       setModalVisible(true);
@@ -111,7 +116,7 @@ export default function Login() {
     if (window.location.hash) {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const idToken = hashParams.get('id_token');
-      
+
       if (idToken) {
         console.log('✅ Token encontrado en URL');
         setUrlChecked(true);
@@ -128,16 +133,16 @@ export default function Login() {
     try {
       setProcessingAuth(true);
       setLoading(true);
-      
+
       // Limpiar URL (solo web)
       if (Platform.OS === 'web') {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
-      
+
       const res = await api.post('/auth/google', { id_token: idToken });
       const { token, user } = res.data;
       console.log('✅ Usuario autenticado:', user.email);
-      
+
       // Obtener roles
       try {
         const rolesRes = await api.get(`/user/${user.id}/roles`, {
@@ -148,23 +153,23 @@ export default function Login() {
         console.warn('No se pudieron obtener los roles:', rolesError);
         user.roles = [];
       }
-      
+
       await authLogin(token, user);
       console.log('🔀 Redirigiendo a home...');
       router.replace('/');
-      
+
     } catch (err: any) {
       console.error('❌ Error en autenticación Google:', err);
       let message = 'Error al autenticar con Google';
-      
+
       if (err?.response?.data?.error) {
         message = err.response.data.error;
       }
-      
+
       setModalTitle('Error');
       setModalMessage(message);
       setModalVisible(true);
-      
+
     } finally {
       setLoading(false);
       setProcessingAuth(false);
@@ -177,13 +182,13 @@ export default function Login() {
       setLoading(true);
       const res = await api.post('/auth/login', data);
       const { token, user } = res.data;
-      
+
       // Obtener roles del usuario
       const rolesRes = await api.get(`/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       user.roles = rolesRes.data.roles || [];
-      
+
       await authLogin(token, user);
       router.replace('/');
     } catch (err: any) {
@@ -198,7 +203,7 @@ export default function Login() {
 
   const handleGoogleLoginWeb = () => {
     console.log('🔗 Iniciando Google OAuth para web...');
-    
+
     const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
     const redirectUri = window.location.origin;
     const scope = 'openid profile email';
@@ -221,7 +226,7 @@ export default function Login() {
     try {
       console.log('📱 Iniciando Google OAuth en mobile...');
       console.log('Request disponible:', !!request);
-      
+
       if (!request) {
         console.log('⚠️ Request no disponible');
         setModalTitle('Error');
@@ -230,9 +235,9 @@ export default function Login() {
         setLoading(false);
         return;
       }
-      
+
       await promptAsync();
-      
+
     } catch (error) {
       console.error('❌ Error al iniciar Google OAuth:', error);
       setModalTitle('Error');
@@ -245,7 +250,7 @@ export default function Login() {
   const handleGoogleLogin = () => {
     console.log('🎯 Iniciando login con Google, plataforma:', Platform.OS);
     setLoading(true);
-    
+
     if (Platform.OS === 'web') {
       handleGoogleLoginWeb();
     } else {
@@ -334,34 +339,17 @@ export default function Login() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.socialButton, 
+              styles.socialButton,
               (loading || !request) && styles.buttonDisabled
-            ]} 
+            ]}
             onPress={handleGoogleLogin}
             disabled={loading || !request}
           >
             <Image source={GoogleIcon} style={styles.googleIcon} />
             <Text style={styles.socialButtonText}>
               {loading ? 'Cargando...' : 'Continuar con Google'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* BOTÓN DEBUG TEMPORAL */}
-          <TouchableOpacity 
-            style={[styles.socialButton, { backgroundColor: '#f0f0f0', marginTop: 10 }]}
-            onPress={() => {
-              const owner = Constants.expoConfig?.owner || 'anonymous';
-              const slug = Constants.expoConfig?.slug || 'my-app';
-              const redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
-              setModalTitle('DEBUG - Redirect URI');
-              setModalMessage(`Copia esta URI y pégala en Google Cloud Console:\n\n${redirectUri}`);
-              setModalVisible(true);
-            }}
-          >
-            <Text style={[styles.socialButtonText, { color: '#666' }]}>
-              🔧 Mostrar Redirect URI para Google Console
             </Text>
           </TouchableOpacity>
 
