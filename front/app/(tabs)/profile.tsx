@@ -7,21 +7,20 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as DocumentPicker from 'expo-document-picker';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import api, { API_URL } from '../config/api';
-import CustomModal from "./components/CustomModal";
-import ImagePickerModal from "./components/ImagePickerModal";
-import { useAuth } from './context/AuthContext';
+import api, { API_URL } from '../../config/api';
+import CustomModal from "../components/CustomModal";
+import ImagePickerModal from "../components/ImagePickerModal";
+import { useAuth } from '../context/AuthContext';
 
 // Components
-import ProfileHeader from './components/profile/ProfileHeader';
-import ProfileImageSection from './components/profile/ProfileImageSection';
-import PersonalInfoCard from './components/profile/PersonalInfoCard';
-import AddressCard from './components/profile/AddressCard';
-import DocumentCard from './components/profile/DocumentCard';
+import ProfileHeader from '../components/profile/ProfileHeader';
+import ProfileImageSection from '../components/profile/ProfileImageSection';
+import PersonalInfoCard from '../components/profile/PersonalInfoCard';
+import AddressCard from '../components/profile/AddressCard';
+import DocumentCard from '../components/profile/DocumentCard';
 
 type User = {
   id: number;

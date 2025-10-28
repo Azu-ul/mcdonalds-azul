@@ -3,7 +3,7 @@
 // routes/products.js
 // ============================================
 import express from 'express';
-import db from '../config/db.js';
+import pool from '../db.js';
 const router = express.Router();
 import { authenticateToken } from '../middleware/auth.js';
 

@@ -2,7 +2,7 @@
 // routes/categories.js
 // ============================================
 import express from 'express';
-import db from '../config/db.js';
+import pool from '../db.js';
 const router = express.Router();
 
 /**
@@ -12,7 +12,7 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const [categories] = await db.query(`
+    const [categories] = await pool.query(`
       SELECT * FROM categories 
       WHERE is_active = 1 
       ORDER BY display_order ASC

@@ -5,15 +5,10 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
-import Constants from 'expo-constants';
 import api from '../config/api';
 import GoogleIcon from '../assets/google-icon.png';
 import CustomModal from './components/CustomModal';
 import { useAuth } from './context/AuthContext';
-
-WebBrowser.maybeCompleteAuthSession();
 
 type FormData = {
   email: string;
@@ -39,33 +34,11 @@ export default function Login() {
   const [processingAuth, setProcessingAuth] = useState(false);
   const [urlChecked, setUrlChecked] = useState(false);
 
-  // DEBUG: Descubrir información de la app
-  useEffect(() => {
-    console.log('🐛 DEBUG INFO:');
-    console.log('📱 Platform:', Platform.OS);
-    console.log('🔧 App Config:', Constants.expoConfig);
-    console.log('👤 Owner:', Constants.expoConfig?.owner);
-    console.log('📛 Slug:', Constants.expoConfig?.slug);
-    console.log('🔗 Scheme:', Constants.expoConfig?.scheme);
-    
-    // Calcular redirect URI manualmente
-    const owner = Constants.expoConfig?.owner || 'anonymous';
-    const slug = Constants.expoConfig?.slug || 'my-app';
-    const expoRedirectUri = `https://auth.expo.io/@${owner}/${slug}`;
-    console.log('🎯 Calculated Expo Redirect URI:', expoRedirectUri);
-    
-    // URL actual (para web)
-    if (Platform.OS === 'web') {
-      console.log('🌐 Current URL:', window.location.href);
-      console.log('🌐 Origin:', window.location.origin);
-    }
-  }, []);
-
-  // Configuración para Android - SIN redirectUri explícito
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    scopes: ['openid', 'profile', 'email'],
-    // NO especificar redirectUri - dejar que Expo lo maneje automáticamente
+  // Solo para mobile nativo
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
   });
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -73,34 +46,15 @@ export default function Login() {
     mode: 'onTouched'
   });
 
-  // Para mobile - manejar respuesta de Google
+  // Para mobile nativo
   useEffect(() => {
-    console.log('🔍 Google Response:', response);
-    
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      console.log('✅ Authentication success');
-      
-      if (authentication?.idToken) {
-        handleGoogleAuth(authentication.idToken);
-      }
-    } else if (response?.type === 'error') {
-      console.error('❌ Google Auth Error:', response.error);
-      
-      // Mostrar error detallado
-      let errorMessage = 'Error de autenticación con Google';
-      if (response.error?.message) {
-        errorMessage += `: ${response.error.message}`;
-      }
-      
-      setModalTitle('Error de Autenticación');
-      setModalMessage(errorMessage);
-      setModalVisible(true);
-      setLoading(false);
+    if (response?.type === 'success' && Platform.OS !== 'web') {
+      const { id_token } = response.params;
+      handleGoogleAuth(id_token);
     }
   }, [response]);
 
-  // Para web - verificar URL
+  // Para web - verificar URL inmediatamente al cargar el componente
   useEffect(() => {
     if (Platform.OS === 'web' && !urlChecked) {
       checkURLForToken();
@@ -108,44 +62,82 @@ export default function Login() {
   }, [urlChecked]);
 
   const checkURLForToken = () => {
+    console.log('🔍 Verificando URL por tokens de Google...');
+    
+    const currentUrl = window.location.href;
+    console.log('URL completa:', currentUrl);
+    
+    // Buscar en hash (#)
     if (window.location.hash) {
+      console.log('📌 Hash encontrado:', window.location.hash);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const idToken = hashParams.get('id_token');
+      const accessToken = hashParams.get('access_token');
+      
+      console.log('Token ID en hash:', idToken);
+      console.log('Access Token en hash:', accessToken);
       
       if (idToken) {
-        console.log('✅ Token encontrado en URL');
+        console.log('✅ Token ID encontrado en hash, procesando...');
         setUrlChecked(true);
         handleGoogleAuth(idToken);
         return;
       }
     }
+    
+    // Buscar en query parameters (?)
+    if (window.location.search) {
+      console.log('📌 Query parameters encontrados:', window.location.search);
+      const searchParams = new URLSearchParams(window.location.search);
+      const idToken = searchParams.get('id_token');
+      const accessToken = searchParams.get('access_token');
+      
+      console.log('Token ID en query:', idToken);
+      console.log('Access Token en query:', accessToken);
+      
+      if (idToken) {
+        console.log('✅ Token ID encontrado en query, procesando...');
+        setUrlChecked(true);
+        handleGoogleAuth(idToken);
+        return;
+      }
+    }
+    
+    console.log('❌ No se encontraron tokens en la URL');
     setUrlChecked(true);
   };
 
   const handleGoogleAuth = async (idToken: string) => {
-    if (processingAuth) return;
+    if (processingAuth) {
+      console.log('⚠️ Autenticación ya en proceso, ignorando...');
+      return;
+    }
 
     try {
       setProcessingAuth(true);
       setLoading(true);
+      console.log('🚀 Iniciando autenticación con token de Google...');
       
-      // Limpiar URL (solo web)
+      // Limpiar la URL ANTES de procesar la autenticación
       if (Platform.OS === 'web') {
+        console.log('🧹 Limpiando URL...');
         window.history.replaceState({}, document.title, window.location.pathname);
       }
       
       const res = await api.post('/auth/google', { id_token: idToken });
       const { token, user } = res.data;
+      
       console.log('✅ Usuario autenticado:', user.email);
       
-      // Obtener roles
+      // Obtener roles del usuario
       try {
         const rolesRes = await api.get(`/user/${user.id}/roles`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         user.roles = rolesRes.data.roles || [];
+        console.log('👤 Roles obtenidos:', user.roles);
       } catch (rolesError) {
-        console.warn('No se pudieron obtener los roles:', rolesError);
+        console.warn('⚠️ No se pudieron obtener los roles:', rolesError);
         user.roles = [];
       }
       
@@ -155,10 +147,15 @@ export default function Login() {
       
     } catch (err: any) {
       console.error('❌ Error en autenticación Google:', err);
+      
       let message = 'Error al autenticar con Google';
       
       if (err?.response?.data?.error) {
         message = err.response.data.error;
+        
+        if (message.includes('ya está registrado')) {
+          message += '. Por favor inicia sesión con email y contraseña.';
+        }
       }
       
       setModalTitle('Error');
@@ -171,14 +168,12 @@ export default function Login() {
     }
   };
 
-  // FUNCIÓN ONSUBMIT QUE FALTABA
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true);
       const res = await api.post('/auth/login', data);
       const { token, user } = res.data;
       
-      // Obtener roles del usuario
       const rolesRes = await api.get(`/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -197,12 +192,12 @@ export default function Login() {
   };
 
   const handleGoogleLoginWeb = () => {
-    console.log('🔗 Iniciando Google OAuth para web...');
+    console.log('🔗 Iniciando flujo de Google OAuth...');
     
     const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
     const redirectUri = window.location.origin;
     const scope = 'openid profile email';
-    const responseType = 'id_token';
+    const responseType = 'id_token'; // Cambiado a solo id_token para mayor compatibilidad
     const nonce = Math.random().toString(36).substring(7);
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -213,40 +208,77 @@ export default function Login() {
       `nonce=${nonce}&` +
       `prompt=select_account`;
 
-    // Redirigir en la misma ventana
-    window.location.href = authUrl;
-  };
+    console.log('📍 Redirigiendo a:', authUrl);
+    
+    // Usar popup en lugar de redirección para mejor experiencia
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
 
-  const handleGoogleLoginMobile = async () => {
-    try {
-      console.log('📱 Iniciando Google OAuth en mobile...');
-      console.log('Request disponible:', !!request);
-      
-      if (!request) {
-        console.log('⚠️ Request no disponible');
+    const popup = window.open(
+      authUrl,
+      'Google Login',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!popup) {
+      setModalTitle('Error');
+      setModalMessage('Por favor permite los popups para esta página');
+      setModalVisible(true);
+      return;
+    }
+
+    // Verificar periódicamente el estado del popup
+    const checkPopup = setInterval(() => {
+      try {
+        if (popup.closed) {
+          clearInterval(checkPopup);
+          setLoading(false);
+          console.log('📌 Popup cerrado por el usuario');
+          return;
+        }
+
+        // Intentar leer la URL del popup (puede fallar por CORS)
+        if (popup.location.href.startsWith(redirectUri)) {
+          const hash = popup.location.hash;
+          if (hash) {
+            const params = new URLSearchParams(hash.substring(1));
+            const idToken = params.get('id_token');
+            
+            if (idToken) {
+              console.log('✅ Token obtenido del popup');
+              popup.close();
+              clearInterval(checkPopup);
+              handleGoogleAuth(idToken);
+            }
+          }
+        }
+      } catch (error) {
+        // Error de CORS es normal, ignorar
+      }
+    }, 500);
+
+    // Timeout después de 2 minutos
+    setTimeout(() => {
+      if (popup && !popup.closed) {
+        popup.close();
+        clearInterval(checkPopup);
         setModalTitle('Error');
-        setModalMessage('La autenticación no está disponible en este momento');
+        setModalMessage('El tiempo de autenticación ha expirado');
         setModalVisible(true);
         setLoading(false);
-        return;
       }
-      
-      await promptAsync();
-      
-    } catch (error) {
-      console.error('❌ Error al iniciar Google OAuth:', error);
-      setModalTitle('Error');
-      setModalMessage('Error al iniciar la autenticación con Google');
-      setModalVisible(true);
-      setLoading(false);
-    }
+    }, 120000);
+  };
+
+  const handleGoogleLoginMobile = () => {
+    promptAsync();
   };
 
   const handleGoogleLogin = () => {
-    console.log('🎯 Iniciando login con Google, plataforma:', Platform.OS);
-    setLoading(true);
-    
     if (Platform.OS === 'web') {
+      setLoading(true);
       handleGoogleLoginWeb();
     } else {
       handleGoogleLoginMobile();
@@ -335,34 +367,12 @@ export default function Login() {
           </View>
 
           <TouchableOpacity 
-            style={[
-              styles.socialButton, 
-              (loading || !request) && styles.buttonDisabled
-            ]} 
+            style={[styles.socialButton, loading && styles.buttonDisabled]} 
             onPress={handleGoogleLogin}
-            disabled={loading || !request}
+            disabled={loading}
           >
             <Image source={GoogleIcon} style={styles.googleIcon} />
-            <Text style={styles.socialButtonText}>
-              {loading ? 'Cargando...' : 'Continuar con Google'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* BOTÓN DEBUG TEMPORAL */}
-          <TouchableOpacity 
-            style={[styles.socialButton, { backgroundColor: '#f0f0f0', marginTop: 10 }]}
-            onPress={() => {
-              const owner = Constants.expoConfig?.owner || 'anonymous';
-              const slug = Constants.expoConfig?.slug || 'my-app';
-              const redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
-              setModalTitle('DEBUG - Redirect URI');
-              setModalMessage(`Copia esta URI y pégala en Google Cloud Console:\n\n${redirectUri}`);
-              setModalVisible(true);
-            }}
-          >
-            <Text style={[styles.socialButtonText, { color: '#666' }]}>
-              🔧 Mostrar Redirect URI para Google Console
-            </Text>
+            <Text style={styles.socialButtonText}>Continuar con Google</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.push('/register')}>
@@ -390,7 +400,6 @@ export default function Login() {
   );
 }
 
-// Los estilos se mantienen igual...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -548,6 +557,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#636363ff',
+    color: '#666',
   },
 });

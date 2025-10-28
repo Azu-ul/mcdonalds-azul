@@ -3,16 +3,16 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from './context/AuthContext';
-import api from '../config/api';
+import { useAuth } from '../context/AuthContext';
+import api from '../../config/api';
 
 // Componentes
-import AddressBar from './components/home/AddressBar';
-import CategoryCarousel from './components/home/CategoryCarousel';
-import ProductCarousel from './components/home/ProductCarousel';
-import FlyerCarousel from './components/home/FlyerCarousel';
-import BottomTabs from './components/home/BottomTabs';
-import FloatingCart from './components/home/FloatingCart';
+import AddressBar from '../components/home/AddressBar';
+import CategoryCarousel from '../components/home/CategoryCarousel';
+import ProductCarousel from '../components/home/ProductCarousel';
+import FlyerCarousel from '../components/home/FlyerCarousel';
+import BottomTabs from '../components/home/BottomTabs';
+import FloatingCart from '../components/home/FloatingCart';
 
 type Product = {
   id: number;
@@ -207,7 +207,7 @@ export default function Home() {
 
         {/* Título de Sección */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>McCombos</Text>
+          <Text style={styles.sectionTitle}>{selectedCategory}</Text>
           <TouchableOpacity onPress={() => router.push('/category/mccombos')}>
             <Text style={styles.seeAllText}>Ver todo →</Text>
           </TouchableOpacity>
@@ -244,9 +244,6 @@ export default function Home() {
           onPress={() => router.push('/cart')}
         />
       )}
-
-      {/* Tabs Inferiores */}
-      <BottomTabs currentTab="home" />
     </View>
   );
 }
