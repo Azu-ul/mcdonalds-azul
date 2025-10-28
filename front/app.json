@@ -30,6 +30,9 @@
         "projectId": "b8cdbf13-522a-40f5-b348-df650a52a7f2"
       }
     },
-    "scheme": "mcdonalds-azul"
+    "scheme": "mcdonalds-azul",
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }
