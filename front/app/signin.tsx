@@ -6,6 +6,8 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 import api from '../config/api';
 import GoogleIcon from '../assets/google-icon.png';
 import CustomModal from './components/CustomModal';
@@ -37,20 +39,34 @@ export default function Login() {
   const [processingAuth, setProcessingAuth] = useState(false);
   const [urlChecked, setUrlChecked] = useState(false);
 
-  // Configuración SIMPLIFICADA para Google Auth
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    // Para Android, usar solo el Android Client ID
-    clientId: Platform.OS === 'android' 
-      ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
-      : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    scopes: ['openid', 'profile', 'email'],
-    // Dejar que Expo maneje automáticamente el redirectUri
-  });
+  // DEBUG: Descubrir información de la app
+  useEffect(() => {
+    console.log('🐛 DEBUG INFO:');
+    console.log('📱 Platform:', Platform.OS);
+    console.log('🔧 App Config:', Constants.expoConfig);
+    console.log('👤 Owner:', Constants.expoConfig?.owner);
+    console.log('📛 Slug:', Constants.expoConfig?.slug);
+    console.log('🔗 Scheme:', Constants.expoConfig?.scheme);
+    
+    // Calcular redirect URI manualmente
+    const owner = Constants.expoConfig?.owner || 'anonymous';
+    const slug = Constants.expoConfig?.slug || 'my-app';
+    const expoRedirectUri = `https://auth.expo.io/@${owner}/${slug}`;
+    console.log('🎯 Calculated Expo Redirect URI:', expoRedirectUri);
+    
+    // URL actual (para web)
+    if (Platform.OS === 'web') {
+      console.log('🌐 Current URL:', window.location.href);
+      console.log('🌐 Origin:', window.location.origin);
+    }
+  }, []);
 
-  console.log('📱 Platform:', Platform.OS);
-  console.log('🔑 Client ID configurado:', Platform.OS === 'android' 
-    ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID 
-    : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
+  // Configuración para Android - SIN redirectUri explícito
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    scopes: ['openid', 'profile', 'email'],
+    // NO especificar redirectUri - dejar que Expo lo maneje automáticamente
+  });
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(schema),
@@ -59,21 +75,26 @@ export default function Login() {
 
   // Para mobile - manejar respuesta de Google
   useEffect(() => {
-    console.log('🔍 Respuesta de Google:', response);
+    console.log('🔍 Google Response:', response);
     
     if (response?.type === 'success') {
       const { authentication } = response;
-      console.log('✅ Autenticación exitosa');
+      console.log('✅ Authentication success');
       
       if (authentication?.idToken) {
         handleGoogleAuth(authentication.idToken);
-      } else {
-        console.error('❌ No se encontró idToken en la respuesta');
       }
     } else if (response?.type === 'error') {
-      console.error('❌ Error en autenticación Google:', response.error);
-      setModalTitle('Error');
-      setModalMessage(`Error: ${response.error?.message || 'Revisa la configuración de Google OAuth'}`);
+      console.error('❌ Google Auth Error:', response.error);
+      
+      // Mostrar error detallado
+      let errorMessage = 'Error de autenticación con Google';
+      if (response.error?.message) {
+        errorMessage += `: ${response.error.message}`;
+      }
+      
+      setModalTitle('Error de Autenticación');
+      setModalMessage(errorMessage);
       setModalVisible(true);
       setLoading(false);
     }
@@ -102,15 +123,11 @@ export default function Login() {
   };
 
   const handleGoogleAuth = async (idToken: string) => {
-    if (processingAuth) {
-      console.log('⚠️ Autenticación ya en proceso');
-      return;
-    }
+    if (processingAuth) return;
 
     try {
       setProcessingAuth(true);
       setLoading(true);
-      console.log('🚀 Procesando autenticación Google...');
       
       // Limpiar URL (solo web)
       if (Platform.OS === 'web') {
@@ -154,12 +171,14 @@ export default function Login() {
     }
   };
 
+  // FUNCIÓN ONSUBMIT QUE FALTABA
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true);
       const res = await api.post('/auth/login', data);
       const { token, user } = res.data;
       
+      // Obtener roles del usuario
       const rolesRes = await api.get(`/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -326,6 +345,23 @@ export default function Login() {
             <Image source={GoogleIcon} style={styles.googleIcon} />
             <Text style={styles.socialButtonText}>
               {loading ? 'Cargando...' : 'Continuar con Google'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* BOTÓN DEBUG TEMPORAL */}
+          <TouchableOpacity 
+            style={[styles.socialButton, { backgroundColor: '#f0f0f0', marginTop: 10 }]}
+            onPress={() => {
+              const owner = Constants.expoConfig?.owner || 'anonymous';
+              const slug = Constants.expoConfig?.slug || 'my-app';
+              const redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
+              setModalTitle('DEBUG - Redirect URI');
+              setModalMessage(`Copia esta URI y pégala en Google Cloud Console:\n\n${redirectUri}`);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.socialButtonText, { color: '#666' }]}>
+              🔧 Mostrar Redirect URI para Google Console
             </Text>
           </TouchableOpacity>
 
@@ -512,6 +548,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: '#636363ff',
   },
 });
