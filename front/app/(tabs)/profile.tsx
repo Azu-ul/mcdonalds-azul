@@ -68,7 +68,7 @@ export default function Profile() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { updateUser, logout } = useAuth();
-  
+
   // Estados
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,7 +86,7 @@ export default function Profile() {
   });
   const [editingUsername, setEditingUsername] = useState(false);
   const [username, setUsername] = useState('');
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(''); // Siempre inicializado como string vacío
   const [modals, setModals] = useState({
     logout: false,
     deleteAccount: false,
@@ -319,7 +319,7 @@ export default function Profile() {
         accuracy: Location.Accuracy.Balanced,
       });
       const { latitude, longitude } = location.coords;
-      
+
       const addressStr = await getAddressFromCoords(latitude, longitude);
       await api.put('/profile/location', { latitude, longitude, address: addressStr });
 
@@ -464,7 +464,7 @@ export default function Profile() {
 
       <DocumentCard
         documentUrl={user?.document_image_url}
-        onUpload={async () => {/* implement */}}
+        onUpload={async () => {/* implement */ }}
         onDelete={() => updateModal('deleteDocument', true)}
         loading={loadingStates.document}
         deleting={loadingStates.deletingDocument}

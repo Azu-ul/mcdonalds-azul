@@ -1,40 +1,66 @@
 // back/routes/addresses.js
 import express from 'express';
 import pool from '../db.js';
-import {authenticateToken} from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// ✅ GET /api/user/addresses → Listar direcciones del usuario autenticado
-router.get('/addresses', async (req, res) => {
+// Agrega esto temporalmente para ver qué está pasando
+router.get('/addresses', authenticateToken, async (req, res) => {
   try {
+    console.log('=== INICIANDO GET /addresses ===');
+    console.log('Usuario:', req.user);
+    console.log('User ID:', req.user.id);
+
+    // ✅ CORREGIDO: Seleccionar la columna 'label' de la base de datos
     const [addresses] = await pool.execute(
-      `SELECT id, label, street, city, latitude, longitude, is_default
+      `SELECT id, label, address, latitude, longitude, is_default, created_at, updated_at
        FROM user_addresses
        WHERE user_id = ?
        ORDER BY is_default DESC, created_at DESC`,
       [req.user.id]
     );
-    res.json({ success: true, addresses });
+
+    console.log('Direcciones encontradas en BD:', addresses);
+
+    if (addresses.length === 0) {
+      console.log('No se encontraron direcciones para el usuario');
+    }
+
+    res.json({
+      success: true,
+      addresses: addresses.map(addr => ({
+        id: addr.id,
+        // ✅ CORREGIDO: Usar el label real de la base de datos, con fallback
+        label: addr.label || 'Mi dirección',
+        address: addr.address,
+        latitude: addr.latitude,
+        longitude: addr.longitude,
+        is_default: addr.is_default
+      }))
+    });
   } catch (error) {
-    console.error('Error al obtener direcciones:', error);
-    res.status(500).json({ success: false, message: 'Error al cargar las direcciones.' });
+    console.error('Error completo:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Error al cargar las direcciones.',
+      error: error.message
+    });
   }
 });
 
-// ✅ POST /api/user/addresses → Crear nueva dirección
 router.post('/addresses', authenticateToken, async (req, res) => {
   const {
     label = 'Casa',
-    street,
-    city,
+    address, // Cambiar de street a address
     latitude = null,
     longitude = null,
     is_default = false
   } = req.body;
 
-  if (!street || !city) {
-    return res.status(400).json({ success: false, message: 'Calle y ciudad son obligatorios.' });
+  if (!address) { // Cambiar de street a address
+    return res.status(400).json({ success: false, message: 'La dirección es obligatoria.' });
   }
 
   try {
@@ -47,9 +73,9 @@ router.post('/addresses', authenticateToken, async (req, res) => {
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO user_addresses (user_id, label, street, city, latitude, longitude, is_default)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.id, label, street, city, latitude, longitude, is_default ? 1 : 0]
+      `INSERT INTO user_addresses (user_id, label, address, latitude, longitude, is_default)
+       VALUES (?, ?, ?, ?, ?, ?)`, // Quitar label, street, city
+      [req.user.id, label, address, latitude, longitude, is_default ? 1 : 0]
     );
 
     res.status(201).json({ success: true, id: result.insertId, message: 'Dirección guardada.' });
@@ -59,10 +85,9 @@ router.post('/addresses', authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ PUT /api/user/addresses/:id → Editar dirección
 router.put('/addresses/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { label, street, city, latitude, longitude, is_default } = req.body;
+  const { label, address, latitude, longitude, is_default } = req.body;
 
   try {
     // Verificar que la dirección pertenece al usuario
@@ -81,19 +106,18 @@ router.put('/addresses/:id', authenticateToken, async (req, res) => {
       );
     }
 
+    // ACTUALIZACIÓN CORREGIDA - incluir label
     await pool.execute(
       `UPDATE user_addresses SET
         label = COALESCE(?, label),
-        street = COALESCE(?, street),
-        city = COALESCE(?, city),
+        address = COALESCE(?, address),
         latitude = ?,
         longitude = ?,
         is_default = ?
        WHERE id = ?`,
       [
-        label,
-        street,
-        city,
+        label,        // ← Agregar label aquí
+        address,      // ← address va después de label
         latitude,
         longitude,
         is_default ? 1 : 0,

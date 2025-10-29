@@ -4,16 +4,17 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 type AddressBarProps = {
   address: string;
   onPress: () => void;
+  isRestaurant?: boolean; // Nueva prop para identificar si es restaurante
 };
 
-
-export default function AddressBar({ address, onPress }: AddressBarProps) {
+export default function AddressBar({ address, onPress, isRestaurant = false }: AddressBarProps) {
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
       <View style={styles.content}>
-        <Text style={styles.label}>Enviar a</Text>
+        <Text style={styles.label}>
+          {isRestaurant ? 'Retirar en' : 'Enviar a'} {/* Cambia el texto según el tipo */}
+        </Text>
         <View style={styles.addressRow}>
-          <Text style={styles.icon}>📍</Text>
           <Text style={styles.address} numberOfLines={1}>{address}</Text>
           <Text style={styles.arrow}>›</Text>
         </View>

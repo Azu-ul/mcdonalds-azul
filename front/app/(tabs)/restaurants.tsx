@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -28,8 +29,8 @@ type SavedAddress = {
   id: string;
   label: string;
   address: string;
-  latitude: number;
-  longitude: number;
+  latitude: number;  // Ya no es opcional
+  longitude: number; // Ya no es opcional
   distance: number;
 };
 
@@ -37,30 +38,39 @@ type Tab = 'pickup' | 'delivery';
 
 export default function Restaurants() {
   const router = useRouter();
-  const { updateUser } = useAuth();
+  const { user, isAuthenticated, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('delivery');
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Pedí y Retirá
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [filteredRestaurants, setFilteredRestaurants] = useState<Restaurant[]>([]);
-  
+
   // McDelivery
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
-  
+
   // Modales
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [editAddressText, setEditAddressText] = useState('');
   const [editAddressLabel, setEditAddressLabel] = useState('');
 
+  // Modal para menú de opciones
+  const [menuModalVisible, setMenuModalVisible] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<SavedAddress | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
+  // Estados nuevos para el modal de confirmación
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState<string | null>(null);
+
   useEffect(() => {
     loadRestaurants();
     loadSavedAddresses();
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -73,6 +83,15 @@ export default function Restaurants() {
       setFilteredRestaurants(filtered);
     }
   }, [searchQuery, restaurants]);
+
+  // Agrega este useEffect para debug
+  useEffect(() => {
+    console.log('Estado actual de direcciones:', {
+      isAuthenticated,
+      savedAddressesCount: savedAddresses.length,
+      savedAddresses
+    });
+  }, [savedAddresses, isAuthenticated]);
 
   const loadRestaurants = async () => {
     try {
@@ -105,21 +124,64 @@ export default function Restaurants() {
 
   const loadSavedAddresses = async () => {
     try {
-      const stored = await AsyncStorage.getItem('saved_addresses');
-      if (stored) {
-        setSavedAddresses(JSON.parse(stored));
+      console.log('=== CARGANDO DIRECCIONES DESDE BD ===');
+
+      if (isAuthenticated) {
+        console.log('Cargando desde API/BD...');
+        const response = await api.get('/user/addresses');
+        console.log('Respuesta API COMPLETA:', JSON.stringify(response.data, null, 2));
+
+        if (response.data.success && response.data.addresses) {
+          const addresses = response.data.addresses
+            .filter((addr: any) => addr.latitude != null && addr.longitude != null) // Filtrar direcciones sin coordenadas
+            .map((addr: any) => ({
+              id: addr.id.toString(),
+              label: addr.label || 'Mi dirección',
+              address: addr.address,
+              latitude: addr.latitude,
+              longitude: addr.longitude,
+              distance: 0,
+            }));
+          console.log('Direcciones procesadas:', addresses);
+          setSavedAddresses(addresses);
+        } else {
+          console.log('No hay direcciones en BD');
+          setSavedAddresses([]);
+        }
+      } else {
+        console.log('Usuario no autenticado, sin direcciones');
+        setSavedAddresses([]);
       }
     } catch (error) {
-      console.error('Error loading saved addresses:', error);
+      console.error('Error loading saved addresses from DB:', error);
+      // En caso de error, intentar cargar desde AsyncStorage como fallback
+      try {
+        const stored = await AsyncStorage.getItem('saved_addresses');
+        if (stored) {
+          const storedAddresses = JSON.parse(stored);
+          console.log('Fallback a AsyncStorage por error:', storedAddresses);
+          setSavedAddresses(storedAddresses);
+        } else {
+          setSavedAddresses([]);
+        }
+      } catch (fallbackError) {
+        console.error('Error en fallback:', fallbackError);
+        setSavedAddresses([]);
+      }
     }
   };
 
   const saveAddressesToStorage = async (addresses: SavedAddress[]) => {
     try {
-      await AsyncStorage.setItem('saved_addresses', JSON.stringify(addresses));
+      // SOLO actualizar estado local - la base de datos es la fuente de verdad
       setSavedAddresses(addresses);
+      console.log('Estado local actualizado con:', addresses.length, 'direcciones');
+
+      // Opcional: mantener AsyncStorage como cache, pero no es crítico
+      await AsyncStorage.setItem('saved_addresses', JSON.stringify(addresses));
+
     } catch (error) {
-      console.error('Error saving addresses:', error);
+      console.error('Error updating local state:', error);
     }
   };
 
@@ -130,19 +192,40 @@ export default function Restaurants() {
     }
 
     try {
-      // Actualizar la dirección del usuario con el restaurante
-      await updateUser({ address: restaurant.name });
+      // Actualizar la dirección del usuario con el restaurante y marcar como restaurante
+      await updateUser({
+        address: restaurant.name,
+        selectedRestaurant: {
+          id: restaurant.id,
+          name: restaurant.name,
+          address: restaurant.address,
+          latitude: null,
+          longitude: null
+        },
+        locationType: 'pickup' // Ahora sí está en el tipo User
+      });
+
+      // Guardar en AsyncStorage como restaurante seleccionado
+      await AsyncStorage.setItem('selected_address', restaurant.name);
+      await AsyncStorage.setItem('selected_restaurant', 'true');
+      await AsyncStorage.setItem('restaurant_name', restaurant.name);
+      await AsyncStorage.setItem('restaurant_address', restaurant.address);
+      await AsyncStorage.setItem('is_restaurant_pickup', 'true');
+
+      console.log('Restaurante seleccionado:', restaurant.name);
+
       router.replace('/');
     } catch (error) {
       Alert.alert('Error', 'No se pudo seleccionar el restaurante');
     }
   };
 
+  // Modifica handleUseCurrentLocation para que después de guardar, permita editar
   const handleUseCurrentLocation = async () => {
     try {
       setLoadingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permiso denegado', 'Necesitamos tu ubicación');
         return;
@@ -161,7 +244,7 @@ export default function Restaurants() {
       // Crear nueva dirección guardada
       const newAddress: SavedAddress = {
         id: Date.now().toString(),
-        label: address,
+        label: 'Mi ubicación actual', // Label por defecto
         address,
         latitude,
         longitude,
@@ -169,14 +252,35 @@ export default function Restaurants() {
       };
 
       const updatedAddresses = [newAddress, ...savedAddresses];
+
+      // Guardar usando la nueva función que guarda en ambos lugares
       await saveAddressesToStorage(updatedAddresses);
-      
-      Alert.alert('Ubicación guardada', 'Tu ubicación actual fue guardada');
+
+      Alert.alert(
+        'Ubicación guardada',
+        'Tu ubicación actual fue guardada. Puedes editar el nombre tocando los tres puntos.',
+        [{ text: 'OK' }]
+      );
     } catch (error) {
       console.error('Error getting location:', error);
       Alert.alert('Error', 'No se pudo obtener tu ubicación');
     } finally {
       setLoadingLocation(false);
+    }
+  };
+
+  const saveAddressToBackend = async (address: SavedAddress) => {
+    try {
+      const response = await api.post('/user/addresses', {
+        address: address.address,
+        latitude: address.latitude,
+        longitude: address.longitude,
+        is_default: false // o true si es la primera
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving address to backend:', error);
+      throw error;
     }
   };
 
@@ -191,7 +295,7 @@ export default function Restaurants() {
       }
 
       const data = await response.json();
-      
+
       if (data.address) {
         const addr = data.address;
         const parts = [
@@ -201,10 +305,10 @@ export default function Restaurants() {
           addr.suburb,
           addr.city || addr.town || addr.village,
         ].filter(Boolean);
-        
+
         return parts.length > 0 ? parts.join(', ') : data.display_name;
       }
-      
+
       return `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
     } catch (error) {
       console.error('Error getting address:', error);
@@ -214,16 +318,32 @@ export default function Restaurants() {
 
   const handleSelectAddress = async (address: SavedAddress) => {
     try {
-      // Actualizar dirección del usuario en el backend
-      await api.put('/profile/location', {
+      if (isAuthenticated) {
+        // Actualizar dirección del usuario en el backend
+        await api.put('/profile/location', {
+          latitude: address.latitude,
+          longitude: address.longitude,
+          address: address.address
+        });
+      }
+
+      // Actualizar contexto local - limpiar restaurante seleccionado
+      await updateUser({
+        address: address.address,
         latitude: address.latitude,
         longitude: address.longitude,
-        address: address.address
+        selectedRestaurant: null,
+        locationType: 'delivery'
       });
-      
-      // Actualizar contexto local
-      await updateUser({ address: address.address });
-      
+
+      await AsyncStorage.setItem('selected_address', address.address);
+      await AsyncStorage.setItem('selected_address_label', address.label);
+      await AsyncStorage.setItem('selected_latitude', address.latitude.toString());
+      await AsyncStorage.setItem('selected_longitude', address.longitude.toString());
+      await AsyncStorage.setItem('is_restaurant_pickup', 'false');
+
+      console.log('Dirección guardada:', address.address);
+
       // Volver al home
       router.replace('/');
     } catch (error) {
@@ -240,53 +360,167 @@ export default function Restaurants() {
   };
 
   const handleSaveEditedAddress = async () => {
-    if (!editingAddress || !editAddressText.trim()) {
-      Alert.alert('Error', 'Ingresa una dirección válida');
+    if (!editingAddress || !editAddressText.trim() || !editAddressLabel.trim()) {
+      Alert.alert('Error', 'Ingresa una etiqueta y dirección válidas');
       return;
     }
 
-    const updatedAddresses = savedAddresses.map(addr =>
-      addr.id === editingAddress.id
-        ? { ...addr, address: editAddressText.trim(), label: editAddressLabel.trim() }
-        : addr
-    );
+    try {
+      // Si el usuario está autenticado, actualizar SOLO en el backend
+      if (isAuthenticated) {
+        console.log('Actualizando dirección en BD:', {
+          id: editingAddress.id,
+          label: editAddressLabel.trim(),
+          address: editAddressText.trim()
+        });
 
-    await saveAddressesToStorage(updatedAddresses);
-    setEditModalVisible(false);
-    setEditingAddress(null);
-    Alert.alert('Guardado', 'Dirección actualizada');
+        await api.put(`/user/addresses/${editingAddress.id}`, {
+          label: editAddressLabel.trim(),
+          address: editAddressText.trim(),
+          latitude: editingAddress.latitude,
+          longitude: editingAddress.longitude
+        });
+
+        console.log('Dirección actualizada en BD exitosamente');
+
+        // Recargar las direcciones desde la BD para asegurar consistencia
+        await loadSavedAddresses();
+
+        setEditModalVisible(false);
+        setEditingAddress(null);
+        Alert.alert('Guardado', 'Dirección actualizada correctamente');
+
+      } else {
+        // Usuario no autenticado - guardar localmente
+        const updatedAddress = {
+          ...editingAddress,
+          address: editAddressText.trim(),
+          label: editAddressLabel.trim()
+        };
+
+        const updatedAddresses = savedAddresses.map(addr =>
+          addr.id === editingAddress.id ? updatedAddress : addr
+        );
+
+        await saveAddressesToStorage(updatedAddresses);
+        setEditModalVisible(false);
+        setEditingAddress(null);
+        Alert.alert('Guardado', 'Dirección actualizada (modo local)');
+      }
+
+    } catch (error) {
+      console.error('Error saving edited address:', error);
+      Alert.alert('Error', 'No se pudo actualizar la dirección');
+    }
   };
 
   const handleDeleteAddress = (addressId: string) => {
-    Alert.alert(
-      'Eliminar dirección',
-      '¿Estás seguro?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            const updatedAddresses = savedAddresses.filter(addr => addr.id !== addressId);
-            await saveAddressesToStorage(updatedAddresses);
-          },
-        },
-      ]
-    );
+    setAddressToDelete(addressId);
+    setDeleteModalVisible(true);
   };
 
+  const getProfileImageUrl = () => {
+    if (!user?.profile_image_url) return null;
+    let url = user.profile_image_url;
+    if (url.includes('googleusercontent.com')) {
+      return url.replace(/=s\d+-c/, '=s400-c');
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${API_URL.replace('/api', '')}${url}`;
+  };
+
+  const handleMenuPress = (address: SavedAddress, event: any) => {
+    // Para web, podemos usar las coordenadas del evento para posicionar el modal
+    if (event?.nativeEvent?.pageX && event?.nativeEvent?.pageY) {
+      setMenuPosition({
+        x: event.nativeEvent.pageX - 100, // Ajustar posición
+        y: event.nativeEvent.pageY + 10,
+      });
+    }
+    setSelectedAddress(address);
+    setMenuModalVisible(true);
+  };
+
+  const handleEditFromMenu = () => {
+    if (selectedAddress) {
+      setMenuModalVisible(false);
+      handleEditAddress(selectedAddress);
+    }
+  };
+
+  const handleDeleteFromMenu = () => {
+    if (selectedAddress) {
+      setMenuModalVisible(false);
+      handleDeleteAddress(selectedAddress.id); // Esta ahora abre el modal de confirmación
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!addressToDelete) return;
+
+    try {
+      const updatedAddresses = savedAddresses.filter(addr => addr.id !== addressToDelete);
+      await saveAddressesToStorage(updatedAddresses);
+      setDeleteModalVisible(false);
+      setAddressToDelete(null);
+
+      // Opcional: mostrar mensaje de éxito
+      // Podrías agregar un toast o mensaje temporal aquí
+      console.log('Dirección eliminada correctamente');
+
+    } catch (error) {
+      console.error('Error al eliminar dirección:', error);
+      // Aquí podrías mostrar un mensaje de error
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteModalVisible(false);
+    setAddressToDelete(null);
+  };
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header - Igual al del Home */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {activeTab === 'pickup' 
-            ? 'Busca un restaurante para recoger tu pedido'
-            : 'Ingresa tu dirección para la entrega del pedido'}
-        </Text>
+        <View style={styles.logoContainer}>
+          <Text style={styles.logo}>Mc Donald's Azul</Text>
+        </View>
+
+        {!isAuthenticated ? (
+          <View style={styles.authButtonsContainer}>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={() => router.push('/signin')}
+            >
+              <Text style={styles.loginButtonText}>Ingresar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.registerButton}
+              onPress={() => router.push('/register')}
+            >
+              <Text style={styles.registerButtonText}>Registrarse</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.profileContainer}
+            onPress={() => router.push('/profile')}
+          >
+            {user?.profile_image_url ? (
+              <Image
+                source={{ uri: getProfileImageUrl()! }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.profileImagePlaceholder}>
+                <Text style={styles.profileImageText}>
+                  {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tabs */}
@@ -339,8 +573,8 @@ export default function Restaurants() {
                       <Text style={styles.restaurantName}>{restaurant.name}</Text>
                       <Text style={styles.restaurantAddress}>{restaurant.address}</Text>
                       <Text style={styles.restaurantDistance}>
-                        {restaurant.distance < 1 
-                          ? `A ${(restaurant.distance * 1000).toFixed(0)} m de distancia` 
+                        {restaurant.distance < 1
+                          ? `A ${(restaurant.distance * 1000).toFixed(0)} m de distancia`
                           : `A ${restaurant.distance.toFixed(2)} km de distancia`}
                       </Text>
                     </View>
@@ -350,7 +584,7 @@ export default function Restaurants() {
             )}
           </View>
         ) : (
-          // MCDELIVERY
+          // En la sección MCDELIVERY, reemplaza esta parte:
           <View style={styles.content}>
             <View style={styles.searchContainer}>
               <TextInput
@@ -361,67 +595,76 @@ export default function Restaurants() {
             </View>
 
             <TouchableOpacity
-              style={styles.currentLocationButton}
-              onPress={handleUseCurrentLocation}
-              disabled={loadingLocation}
+              style={[
+                styles.currentLocationButton,
+                !isAuthenticated && styles.currentLocationButtonDisabled // Agregar estilo deshabilitado
+              ]}
+              onPress={isAuthenticated ? handleUseCurrentLocation : undefined} // Solo funciona si está autenticado
+              disabled={loadingLocation || !isAuthenticated} // Deshabilitar si loading o no autenticado
             >
               {loadingLocation ? (
                 <ActivityIndicator color="#292929" />
               ) : (
                 <>
-                  <Text style={styles.currentLocationText}>Usar mi ubicación actual</Text>
+                  <Text style={[
+                    styles.currentLocationText,
+                    !isAuthenticated && styles.currentLocationTextDisabled // Texto en gris si no autenticado
+                  ]}>
+                    Usar mi ubicación actual
+                    {!isAuthenticated && " (Inicia sesión para usar este botón)"}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
 
-            {savedAddresses.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Direcciones guardadas</Text>
-                <View style={styles.addressesList}>
-                  {savedAddresses.map((address) => (
-                    <View key={address.id} style={styles.addressCard}>
-                      <TouchableOpacity
-                        style={styles.addressContent}
-                        onPress={() => handleSelectAddress(address)}
-                      >
-                        <View style={styles.addressInfo}>
-                          <Text style={styles.addressLabel}>{address.label}</Text>
-                          <Text style={styles.addressText}>{address.address}</Text>
-                          <Text style={styles.addressDistance}>
-                            {address.distance < 1 
-                              ? `A ${(address.distance * 1000).toFixed(0)} m de distancia` 
-                              : `A ${address.distance.toFixed(3)} km de distancia`}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={styles.menuButton}
-                        onPress={() => {
-                          Alert.alert(
-                            address.label,
-                            'Selecciona una opción',
-                            [
-                              { text: 'Cancelar', style: 'cancel' },
-                              {
-                                text: 'Editar',
-                                onPress: () => handleEditAddress(address),
-                              },
-                              {
-                                text: 'Eliminar',
-                                style: 'destructive',
-                                onPress: () => handleDeleteAddress(address.id),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <Text style={styles.menuIcon}>⋮</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+            {/* MOSTRAR SOLO EL CARTEL SI NO ESTÁ AUTENTICADO */}
+            {!isAuthenticated ? (
+              <TouchableOpacity
+                style={styles.authPromptCard}
+                onPress={() => router.push('/signin')}
+              >
+                <View style={styles.authPromptContent}>
+                  <Text style={styles.authPromptTitle}>Inicia Sesión</Text>
+                  <Text style={styles.authPromptText}>
+                    Para guardar direcciones y agilizar tus pedidos
+                  </Text>
+                  <Text style={styles.authPromptButton}>Iniciar Sesión →</Text>
                 </View>
-              </>
+              </TouchableOpacity>
+            ) : (
+              /* MOSTRAR DIRECCIONES GUARDADAS SOLO SI ESTÁ AUTENTICADO */
+              savedAddresses.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Direcciones guardadas</Text>
+                  <View style={styles.addressesList}>
+                    {savedAddresses.map((address) => (
+                      <View key={address.id} style={styles.addressCard}>
+                        <TouchableOpacity
+                          style={styles.addressContent}
+                          onPress={() => handleSelectAddress(address)}
+                        >
+                          <View style={styles.addressInfo}>
+                            <Text style={styles.addressLabel}>{address.label}</Text>
+                            <Text style={styles.addressText}>{address.address}</Text>
+                            <Text style={styles.addressDistance}>
+                              {address.distance < 1
+                                ? `A ${(address.distance * 1000).toFixed(0)} m de distancia`
+                                : `A ${address.distance.toFixed(3)} km de distancia`}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.menuButton}
+                          onPress={(event) => handleMenuPress(address, event)}
+                        >
+                          <Text style={styles.menuIcon}>⋮</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )
             )}
           </View>
         )}
@@ -429,7 +672,7 @@ export default function Restaurants() {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Modal de Edición */}
+      {/* Modal de Edición de Dirección */}
       <Modal
         visible={editModalVisible}
         transparent
@@ -478,6 +721,91 @@ export default function Restaurants() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Menú de Opciones (para web) */}
+      <Modal
+        visible={menuModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.menuModalOverlay}
+          activeOpacity={1}
+          onPress={() => setMenuModalVisible(false)}
+        >
+          <View
+            style={[
+              styles.menuModalContainer,
+              {
+                position: 'absolute',
+                top: menuPosition.y,
+                left: menuPosition.x * 0.92,
+              }
+            ]}
+          >
+            <Text style={styles.menuModalTitle}>
+              {selectedAddress?.label}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.menuOption}
+              onPress={handleEditFromMenu}
+            >
+              <Text style={styles.menuOptionText}>✏️ Editar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuOption}
+              onPress={handleDeleteFromMenu}
+            >
+              <Text style={[styles.menuOptionText, styles.menuOptionDelete]}>
+                🗑️ Eliminar
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuCancel}
+              onPress={() => setMenuModalVisible(false)}
+            >
+              <Text style={styles.menuCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={deleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelDelete}
+      >
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.deleteModalContainer}>
+            <Text style={styles.deleteModalTitle}>Eliminar dirección</Text>
+
+            <Text style={styles.deleteModalText}>
+              ¿Estás seguro de que quieres eliminar esta dirección? Esta acción no se puede deshacer.
+            </Text>
+
+            <View style={styles.deleteModalButtons}>
+              <TouchableOpacity
+                style={styles.deleteCancelButton}
+                onPress={handleCancelDelete}
+              >
+                <Text style={styles.deleteCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.deleteConfirmButton}
+                onPress={handleConfirmDelete}
+              >
+                <Text style={styles.deleteConfirmText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -487,29 +815,87 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+  // Header styles igual al Home
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: '#DA291C',
     paddingVertical: 16,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  backButton: {
-    marginRight: 16,
+  logoContainer: {
+    flex: 1,
   },
-  backButtonText: {
-    fontSize: 24,
+  logo: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FFBC0D',
+    textShadowColor: '#292929',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 0,
+  },
+  authButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  loginButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  loginButtonText: {
+    color: '#DA291C',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  registerButton: {
+    backgroundColor: '#FFBC0D',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
+  },
+  registerButtonText: {
     color: '#292929',
     fontWeight: 'bold',
+    fontSize: 14,
   },
-  headerTitle: {
-    flex: 1,
+  profileContainer: {
+    padding: 4,
+  },
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
+  },
+  profileImagePlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFBC0D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  profileImageText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#292929',
   },
+  // Resto de los estilos...
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -530,9 +916,6 @@ const styles = StyleSheet.create({
   tabActive: {
     borderBottomColor: '#FFBC0D',
   },
-  tabIcon: {
-    fontSize: 20,
-  },
   tabText: {
     fontSize: 15,
     color: '#666',
@@ -540,14 +923,6 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#292929',
-    fontWeight: 'bold',
-  },
-  checkmark: {
-    position: 'absolute',
-    top: 8,
-    right: 16,
-    fontSize: 20,
-    color: '#FFBC0D',
     fontWeight: 'bold',
   },
   scrollView: {
@@ -566,10 +941,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
     marginBottom: 20,
-  },
-  searchIcon: {
-    fontSize: 20,
-    marginRight: 12,
   },
   searchInput: {
     flex: 1,
@@ -615,9 +986,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
     marginBottom: 24,
-  },
-  locationIcon: {
-    fontSize: 20,
   },
   currentLocationText: {
     fontSize: 15,
@@ -667,6 +1035,7 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 16,
+    cursor: 'pointer', // Para web
   },
   menuIcon: {
     fontSize: 24,
@@ -675,7 +1044,7 @@ const styles = StyleSheet.create({
   bottomSpacing: {
     height: 40,
   },
-  // Modal styles
+  // Modal de edición
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -742,5 +1111,154 @@ const styles = StyleSheet.create({
     color: '#292929',
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  // Modal de menú (nuevo para web)
+  menuModalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 8,
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  menuModalTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#292929',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 4,
+  },
+  menuOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginVertical: 2,
+  },
+  menuOptionText: {
+    fontSize: 14,
+    color: '#292929',
+  },
+  menuOptionDelete: {
+    color: '#DA291C',
+  },
+  menuCancel: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginTop: 4,
+    backgroundColor: '#F5F5F5',
+  },
+  menuCancelText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  // Agregar estos estilos al StyleSheet
+  deleteModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  deleteModalContainer: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  deleteModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#292929',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  deleteModalText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  deleteCancelButton: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+  },
+  deleteCancelText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteConfirmButton: {
+    flex: 1,
+    backgroundColor: '#DA291C',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deleteConfirmText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  authPromptCard: {
+    backgroundColor: '#FFF8E1',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#FFBC0D',
+    marginBottom: 20,
+  },
+  authPromptContent: {
+    alignItems: 'flex-start',
+  },
+  authPromptTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
+    marginBottom: 8,
+  },
+  authPromptText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  authPromptButton: {
+    fontSize: 15,
+    color: '#DA291C',
+    fontWeight: 'bold',
+  },
+  currentLocationButtonDisabled: {
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E0E0E0',
+    opacity: 0.7,
+  },
+  currentLocationTextDisabled: {
+    color: '#999',
   },
 });

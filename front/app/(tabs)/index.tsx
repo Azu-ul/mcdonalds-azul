@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { useFocusEffect } from '@react-navigation/native';
-import api from '../../config/api';
+import api, { API_URL } from '../../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Componentes
 import AddressBar from '../components/home/AddressBar';
 import CategoryCarousel from '../components/home/CategoryCarousel';
 import ProductCarousel from '../components/home/ProductCarousel';
 import FlyerCarousel from '../components/home/FlyerCarousel';
-import BottomTabs from '../components/home/BottomTabs';
 import FloatingCart from '../components/home/FloatingCart';
 
 type Product = {
@@ -56,27 +55,25 @@ const CATEGORIES = [
 
 export default function Home() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, updateUser } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('McCombos');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [flyers, setFlyers] = useState<Flyer[]>([]);
+  const [isRestaurantPickup, setIsRestaurantPickup] = useState(false);
 
-  // Cargar datos iniciales
   useEffect(() => {
     loadProducts();
+    loadUserAddress();
     loadCart();
     loadFlyers();
   }, []);
 
-  // Recargar dirección cuando la pantalla recibe foco
-  useFocusEffect(
-    React.useCallback(() => {
-      loadUserAddress();
-    }, [user])
-  );
+  useEffect(() => {
+    checkPickupType();
+  }, []);
 
   const loadProducts = async () => {
     try {
@@ -91,27 +88,42 @@ export default function Home() {
     }
   };
 
+  const checkPickupType = async () => {
+    const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
+    setIsRestaurantPickup(isRestaurant === 'true');
+  };
+
+  // En Home.tsx, modifica loadUserAddress:
   const loadUserAddress = async () => {
-    if (user?.address) {
-      setAddress(user.address);
-    } else {
-      // Intentar cargar la dirección predeterminada guardada
-      try {
-        const res = await api.get('/profile/addresses');
-        const addresses = res.data.addresses || [];
-        const defaultAddress = addresses.find((a: any) => a.is_default);
-        
-        if (defaultAddress) {
-          setAddress(defaultAddress.address);
-        } else if (addresses.length > 0) {
-          setAddress(addresses[0].address);
-        } else {
-          setAddress('Ingresa tu dirección de entrega');
-        }
-      } catch (error) {
-        console.error('Error loading addresses:', error);
-        setAddress('Ingresa tu dirección de entrega');
+    try {
+      console.log('Cargando dirección, usuario:', user); // Para debug
+
+      // Primero intentar cargar del contexto de autenticación
+      if (user?.address) {
+        console.log('Dirección del contexto:', user.address);
+        setAddress(user.address);
+        return;
       }
+
+      // Si no hay en el contexto, intentar cargar de AsyncStorage
+      const savedAddress = await AsyncStorage.getItem('selected_address');
+      if (savedAddress) {
+        console.log('Dirección de AsyncStorage:', savedAddress);
+        setAddress(savedAddress);
+
+        // También actualizar el contexto si no hay dirección
+        if (!user?.address) {
+          await updateUser({ address: savedAddress });
+        }
+        return;
+      }
+
+      // Si no hay nada guardado, mostrar el mensaje por defecto
+      console.log('Sin dirección guardada');
+      setAddress('Ingresa tu dirección de entrega');
+    } catch (error) {
+      console.error('Error loading address:', error);
+      setAddress('Ingresa tu dirección de entrega');
     }
   };
 
@@ -128,6 +140,10 @@ export default function Home() {
     try {
       const res = await api.get('/flyers');
       const fetchedFlyers: Flyer[] = res.data.flyers || [];
+      console.log(
+        'Flyers cargados:',
+        fetchedFlyers.map((f: Flyer) => f.image)
+      );
       setFlyers(fetchedFlyers);
     } catch (error) {
       console.error('Error loading flyers:', error);
@@ -154,6 +170,16 @@ export default function Home() {
     return cart.reduce((sum, item) => sum + item.total, 0);
   };
 
+  const getProfileImageUrl = () => {
+    if (!user?.profile_image_url) return null;
+    let url = user.profile_image_url;
+    if (url.includes('googleusercontent.com')) {
+      return url.replace(/=s\d+-c/, '=s400-c');
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${API_URL.replace('/api', '')}${url}`;
+  };
+
   const filteredProducts = products.filter(p => p.category === selectedCategory);
 
   if (loading) {
@@ -168,7 +194,7 @@ export default function Home() {
     <View style={styles.container}>
       {/* Contenido Principal */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header con logo y botones de autenticación */}
+        {/* Header con logo y botones de autenticación o foto de perfil */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>Mc Donald's Azul</Text>
@@ -191,18 +217,31 @@ export default function Home() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.welcomeContainer}>
-              <Text style={styles.welcomeText}>
-                ¡Hola, {user?.username || user?.email}! 👋
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={styles.profileContainer}
+              onPress={() => router.push('/profile')}
+            >
+              {user?.profile_image_url ? (
+                <Image
+                  source={{ uri: getProfileImageUrl()! }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={styles.profileImagePlaceholder}>
+                  <Text style={styles.profileImageText}>
+                    {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           )}
         </View>
 
         {/* Barra de Dirección */}
         <AddressBar
-          address={address}
+          address={user?.address || 'Seleccionar dirección'}
           onPress={() => router.push('/restaurants')}
+          isRestaurant={isRestaurantPickup}
         />
 
         {/* Carrusel de Categorías */}
@@ -212,15 +251,15 @@ export default function Home() {
           onCategoryPress={handleCategoryPress}
         />
 
-        {/* Título de Sección */}
+        {/* Título de Sección - AHORA DINÁMICO */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>McCombos</Text>
-          <TouchableOpacity onPress={() => router.push('/category/mccombos')}>
+          <Text style={styles.sectionTitle}>{selectedCategory}</Text>
+          <TouchableOpacity onPress={() => router.push(`/category/${selectedCategory.toLowerCase().replace(/\s+/g, '-')}`)}>
             <Text style={styles.seeAllText}>Ver todo →</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Carrusel de Productos McCombos */}
+        {/* Carrusel de Productos */}
         <ProductCarousel
           products={filteredProducts}
           onProductPress={handleProductPress}
@@ -242,7 +281,7 @@ export default function Home() {
         {/* Espaciado inferior para tabs */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
-          
+
       {/* Carrito Flotante */}
       {cart.length > 0 && (
         <FloatingCart
@@ -294,7 +333,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 0,
   },
   authButtonsContainer: {
-    display: 'flex',
+    flexDirection: 'row',
     gap: 8,
   },
   loginButton: {
@@ -323,14 +362,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
-  welcomeContainer: {
-    flex: 2,
-    alignItems: 'flex-end',
+  profileContainer: {
+    padding: 4,
   },
-  welcomeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
+  },
+  profileImagePlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFBC0D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  profileImageText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
   },
   sectionHeader: {
     flexDirection: 'row',
