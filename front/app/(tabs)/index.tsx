@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../../config/api';
 
 // Componentes
@@ -63,13 +64,19 @@ export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [flyers, setFlyers] = useState<Flyer[]>([]);
 
-
+  // Cargar datos iniciales
   useEffect(() => {
     loadProducts();
-    loadUserAddress();
     loadCart();
     loadFlyers();
   }, []);
+
+  // Recargar dirección cuando la pantalla recibe foco
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserAddress();
+    }, [user])
+  );
 
   const loadProducts = async () => {
     try {
@@ -84,11 +91,27 @@ export default function Home() {
     }
   };
 
-  const loadUserAddress = () => {
+  const loadUserAddress = async () => {
     if (user?.address) {
       setAddress(user.address);
     } else {
-      setAddress('Ingresa tu dirección de entrega');
+      // Intentar cargar la dirección predeterminada guardada
+      try {
+        const res = await api.get('/profile/addresses');
+        const addresses = res.data.addresses || [];
+        const defaultAddress = addresses.find((a: any) => a.is_default);
+        
+        if (defaultAddress) {
+          setAddress(defaultAddress.address);
+        } else if (addresses.length > 0) {
+          setAddress(addresses[0].address);
+        } else {
+          setAddress('Ingresa tu dirección de entrega');
+        }
+      } catch (error) {
+        console.error('Error loading addresses:', error);
+        setAddress('Ingresa tu dirección de entrega');
+      }
     }
   };
 
@@ -105,11 +128,6 @@ export default function Home() {
     try {
       const res = await api.get('/flyers');
       const fetchedFlyers: Flyer[] = res.data.flyers || [];
-      console.log(
-        'Flyers cargados:',
-        fetchedFlyers.map((f: Flyer) => f.image) // <-- ahora f tiene tipo Flyer
-      );
-      // <-- esto loguea todas las URLs
       setFlyers(fetchedFlyers);
     } catch (error) {
       console.error('Error loading flyers:', error);
@@ -117,22 +135,11 @@ export default function Home() {
     }
   };
 
-
-
   const handleProductPress = (product: Product) => {
     router.push({
       pathname: '/product',
       params: { id: product.id }
     });
-  };
-
-  const loadCategories = async () => {
-    try {
-      const res = await api.get('/home/categories');
-      // Usar res.data.categories si quieres reemplazar CATEGORIES hardcodeado
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
   };
 
   const handleCategoryPress = (categoryName: string) => {
@@ -207,7 +214,7 @@ export default function Home() {
 
         {/* Título de Sección */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{selectedCategory}</Text>
+          <Text style={styles.sectionTitle}>McCombos</Text>
           <TouchableOpacity onPress={() => router.push('/category/mccombos')}>
             <Text style={styles.seeAllText}>Ver todo →</Text>
           </TouchableOpacity>
@@ -235,7 +242,7 @@ export default function Home() {
         {/* Espaciado inferior para tabs */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
-
+          
       {/* Carrito Flotante */}
       {cart.length > 0 && (
         <FloatingCart
