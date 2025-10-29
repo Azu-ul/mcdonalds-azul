@@ -4,15 +4,36 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 type AddressBarProps = {
   address: string;
   onPress: () => void;
-  isRestaurant?: boolean; // Nueva prop para identificar si es restaurante
+  isRestaurant?: boolean; // Prop opcional para forzar el comportamiento
 };
 
 export default function AddressBar({ address, onPress, isRestaurant = false }: AddressBarProps) {
+  // Función para detectar automáticamente si es un restaurante
+  const detectIfRestaurant = (addr: string): boolean => {
+    if (isRestaurant) return true; // Si la prop está explícitamente en true
+    
+    // Palabras clave que indican que es un restaurante
+    const restaurantKeywords = [
+      "mcdonald's",
+      "mcdonalds", 
+      "restaurant",
+      "restaurante",
+      "mc donald",
+      "local",
+      "sucursal"
+    ];
+    
+    const lowerAddress = addr.toLowerCase();
+    return restaurantKeywords.some(keyword => lowerAddress.includes(keyword));
+  };
+
+  const isRestaurantAddress = detectIfRestaurant(address);
+  
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
       <View style={styles.content}>
         <Text style={styles.label}>
-          {isRestaurant ? 'Retirar en' : 'Enviar a'} {/* Cambia el texto según el tipo */}
+          {isRestaurantAddress ? 'Retirar en' : 'Enviar a'}
         </Text>
         <View style={styles.addressRow}>
           <Text style={styles.address} numberOfLines={1}>{address}</Text>
@@ -48,10 +69,6 @@ const styles = StyleSheet.create({
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  icon: {
-    fontSize: 18,
-    marginRight: 8,
   },
   address: {
     flex: 1,

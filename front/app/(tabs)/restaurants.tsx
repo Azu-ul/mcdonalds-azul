@@ -220,7 +220,8 @@ export default function Restaurants() {
     }
   };
 
-  // Modifica handleUseCurrentLocation para que después de guardar, permita editar
+  // Reemplaza la función handleUseCurrentLocation en restaurants.tsx
+
   const handleUseCurrentLocation = async () => {
     try {
       setLoadingLocation(true);
@@ -241,26 +242,44 @@ export default function Restaurants() {
       // Obtener dirección legible
       const address = await getAddressFromBackend(latitude, longitude);
 
-      // Crear nueva dirección guardada
-      const newAddress: SavedAddress = {
-        id: Date.now().toString(),
-        label: 'Mi ubicación actual', // Label por defecto
-        address,
-        latitude,
-        longitude,
-        distance: 0,
-      };
+      // ✅ GUARDAR EN LA BASE DE DATOS
+      if (isAuthenticated) {
+        try {
+          const response = await api.post('/user/addresses', {
+            label: 'Mi ubicación actual',
+            address: address,
+            latitude: latitude,
+            longitude: longitude,
+            is_default: false
+          });
 
-      const updatedAddresses = [newAddress, ...savedAddresses];
+          console.log('Dirección guardada en BD:', response.data);
 
-      // Guardar usando la nueva función que guarda en ambos lugares
-      await saveAddressesToStorage(updatedAddresses);
+          // Recargar direcciones desde la BD para sincronizar
+          await loadSavedAddresses();
 
-      Alert.alert(
-        'Ubicación guardada',
-        'Tu ubicación actual fue guardada. Puedes editar el nombre tocando los tres puntos.',
-        [{ text: 'OK' }]
-      );
+          Alert.alert(
+            'Ubicación guardada',
+            'Tu ubicación actual fue guardada. Puedes editar el nombre tocando los tres puntos.',
+            [{ text: 'OK' }]
+          );
+        } catch (error) {
+          console.error('Error guardando en BD:', error);
+          Alert.alert('Error', 'No se pudo guardar la ubicación en el servidor');
+        }
+      } else {
+        // Usuario no autenticado - guardar localmente
+        const newAddress: SavedAddress = {
+          id: Date.now().toString(),
+          label: 'Mi ubicación actual',
+          address,
+          latitude,
+          longitude,
+          distance: 0,
+        };
+        const updatedAddresses = [newAddress, ...savedAddresses];
+        await saveAddressesToStorage(updatedAddresses);
+      }
     } catch (error) {
       console.error('Error getting location:', error);
       Alert.alert('Error', 'No se pudo obtener tu ubicación');
@@ -455,22 +474,31 @@ export default function Restaurants() {
     }
   };
 
+  // ✅ TAMBIÉN ACTUALIZA handleConfirmDelete para que elimine de la BD
   const handleConfirmDelete = async () => {
     if (!addressToDelete) return;
 
     try {
-      const updatedAddresses = savedAddresses.filter(addr => addr.id !== addressToDelete);
-      await saveAddressesToStorage(updatedAddresses);
+      if (isAuthenticated) {
+        // Eliminar de la base de datos
+        await api.delete(`/user/addresses/${addressToDelete}`);
+        console.log('Dirección eliminada de BD');
+
+        // Recargar desde la BD
+        await loadSavedAddresses();
+      } else {
+        // Usuario no autenticado - eliminar localmente
+        const updatedAddresses = savedAddresses.filter(addr => addr.id !== addressToDelete);
+        await saveAddressesToStorage(updatedAddresses);
+      }
+
       setDeleteModalVisible(false);
       setAddressToDelete(null);
-
-      // Opcional: mostrar mensaje de éxito
-      // Podrías agregar un toast o mensaje temporal aquí
       console.log('Dirección eliminada correctamente');
 
     } catch (error) {
       console.error('Error al eliminar dirección:', error);
-      // Aquí podrías mostrar un mensaje de error
+      Alert.alert('Error', 'No se pudo eliminar la dirección');
     }
   };
 

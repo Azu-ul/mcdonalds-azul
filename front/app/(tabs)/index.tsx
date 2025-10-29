@@ -63,17 +63,23 @@ export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [flyers, setFlyers] = useState<Flyer[]>([]);
   const [isRestaurantPickup, setIsRestaurantPickup] = useState(false);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<{name: string, address: string} | null>(null);
 
   useEffect(() => {
     loadProducts();
     loadUserAddress();
     loadCart();
     loadFlyers();
-  }, []);
-
-  useEffect(() => {
     checkPickupType();
   }, []);
+
+  // Agregar este useEffect para recargar cuando el usuario cambie
+  useEffect(() => {
+    if (user) {
+      loadUserAddress();
+      checkPickupType();
+    }
+  }, [user]);
 
   const loadProducts = async () => {
     try {
@@ -89,27 +95,75 @@ export default function Home() {
   };
 
   const checkPickupType = async () => {
-    const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
-    setIsRestaurantPickup(isRestaurant === 'true');
+    try {
+      const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
+      const restaurantName = await AsyncStorage.getItem('restaurant_name');
+      const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
+      
+      console.log('Check pickup type:', {
+        isRestaurant,
+        restaurantName,
+        restaurantAddress,
+        userAddress: user?.address
+      });
+
+      setIsRestaurantPickup(isRestaurant === 'true');
+      
+      if (isRestaurant === 'true' && restaurantName) {
+        setSelectedRestaurant({
+          name: restaurantName,
+          address: restaurantAddress || ''
+        });
+      } else {
+        setSelectedRestaurant(null);
+      }
+    } catch (error) {
+      console.error('Error checking pickup type:', error);
+      setIsRestaurantPickup(false);
+      setSelectedRestaurant(null);
+    }
   };
 
-  // En Home.tsx, modifica loadUserAddress:
+  // Modificar loadUserAddress para manejar ambos casos
   const loadUserAddress = async () => {
     try {
-      console.log('Cargando dirección, usuario:', user); // Para debug
+      console.log('Cargando dirección, usuario:', user);
 
+      // Primero verificar si hay un restaurante seleccionado
+      const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
+      const restaurantName = await AsyncStorage.getItem('restaurant_name');
+      const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
+
+      if (isRestaurant === 'true' && restaurantName) {
+        // Caso: Restaurante seleccionado (Pedí y Retirá)
+        const displayAddress = `${restaurantName} - ${restaurantAddress}`;
+        console.log('Restaurante seleccionado:', displayAddress);
+        setAddress(displayAddress);
+        setIsRestaurantPickup(true);
+        setSelectedRestaurant({
+          name: restaurantName,
+          address: restaurantAddress || ''
+        });
+        return;
+      }
+
+      // Caso: Dirección normal (McDelivery)
       // Primero intentar cargar del contexto de autenticación
       if (user?.address) {
         console.log('Dirección del contexto:', user.address);
         setAddress(user.address);
+        setIsRestaurantPickup(false);
+        setSelectedRestaurant(null);
         return;
       }
 
       // Si no hay en el contexto, intentar cargar de AsyncStorage
       const savedAddress = await AsyncStorage.getItem('selected_address');
-      if (savedAddress) {
+      if (savedAddress && savedAddress !== 'Ingresa tu dirección de entrega') {
         console.log('Dirección de AsyncStorage:', savedAddress);
         setAddress(savedAddress);
+        setIsRestaurantPickup(false);
+        setSelectedRestaurant(null);
 
         // También actualizar el contexto si no hay dirección
         if (!user?.address) {
@@ -120,10 +174,14 @@ export default function Home() {
 
       // Si no hay nada guardado, mostrar el mensaje por defecto
       console.log('Sin dirección guardada');
-      setAddress('Ingresa tu dirección de entrega');
+      setAddress('Seleccionar dirección');
+      setIsRestaurantPickup(false);
+      setSelectedRestaurant(null);
     } catch (error) {
       console.error('Error loading address:', error);
-      setAddress('Ingresa tu dirección de entrega');
+      setAddress('Seleccionar dirección');
+      setIsRestaurantPickup(false);
+      setSelectedRestaurant(null);
     }
   };
 
@@ -178,6 +236,14 @@ export default function Home() {
     }
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return `${API_URL.replace('/api', '')}${url}`;
+  };
+
+  // Función para obtener la dirección a mostrar
+  const getDisplayAddress = (): string => {
+    if (isRestaurantPickup && selectedRestaurant) {
+      return `${selectedRestaurant.name} - ${selectedRestaurant.address}`;
+    }
+    return address || 'Seleccionar dirección';
   };
 
   const filteredProducts = products.filter(p => p.category === selectedCategory);
@@ -237,9 +303,9 @@ export default function Home() {
           )}
         </View>
 
-        {/* Barra de Dirección */}
+        {/* Barra de Dirección - ACTUALIZADA */}
         <AddressBar
-          address={user?.address || 'Seleccionar dirección'}
+          address={getDisplayAddress()}
           onPress={() => router.push('/restaurants')}
           isRestaurant={isRestaurantPickup}
         />
