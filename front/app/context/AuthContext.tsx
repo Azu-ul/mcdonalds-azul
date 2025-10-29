@@ -11,6 +11,16 @@ type User = {
   auth_provider?: string;
   roles?: string[];
   address?: string;
+  latitude: number | null;
+  longitude: number | null;
+  locationType?: 'pickup' | 'delivery'; // Nueva propiedad
+  selectedRestaurant?: {
+    id: number;
+    name: string;
+    address: string;
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
 };
 
 type AuthContextType = {

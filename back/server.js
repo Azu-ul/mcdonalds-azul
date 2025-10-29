@@ -10,6 +10,9 @@ import adminRoutes from './routes/admin.js';
 import homeRoutes from './routes/home.js';
 import profileRoutes from './routes/profile.js';
 import flyersRoutes from './routes/flyers.js';
+import couponsRoutes from './routes/coupons.js';
+import restaurantsRoutes from './routes/restaurants.js';
+import addressesRoutes from './routes/addresses.js';
 
 import './config/passport.js';
 
@@ -37,6 +40,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/flyers', flyersRoutes);
+app.use('/api/coupons', couponsRoutes);
+app.use('/api/restaurants', restaurantsRoutes);
+app.use('/api/user', addressesRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

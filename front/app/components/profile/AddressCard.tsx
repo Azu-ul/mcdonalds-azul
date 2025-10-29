@@ -20,6 +20,9 @@ export default function AddressCard({
   loadingUpdate,
   saved
 }: AddressCardProps) {
+  // Asegurarse de que el valor siempre sea una string, nunca undefined
+  const controlledAddress = address || '';
+
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>📍 Dirección</Text>
@@ -27,7 +30,7 @@ export default function AddressCard({
       <View style={styles.inputGroup}>
         <TextInput
           style={styles.input}
-          value={address}
+          value={controlledAddress}
           onChangeText={onAddressChange}
           placeholder="Calle, número, ciudad..."
           multiline

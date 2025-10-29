@@ -451,25 +451,4 @@ router.get('/orders', authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/profile/addresses
- * @desc    Obtener direcciones guardadas del usuario
- * @access  Private
- */
-router.get('/addresses', authenticateToken, async (req, res) => {
-  try {
-    const [addresses] = await pool.query(`
-      SELECT id, address, latitude, longitude, is_default, created_at
-      FROM user_addresses
-      WHERE user_id = ?
-      ORDER BY is_default DESC, created_at DESC
-    `, [req.user.id]);
-
-    res.json({ addresses });
-  } catch (err) {
-    console.error('Error al obtener direcciones:', err);
-    res.status(500).json({ error: 'Error al obtener direcciones' });
-  }
-});
-
 export default router;
