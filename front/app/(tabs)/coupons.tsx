@@ -1,4 +1,3 @@
-// /app/coupons.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -20,7 +19,7 @@ type Coupon = {
   image_url: string;
   discount_value: number;
   discount_type: 'percentage' | 'fixed';
-  product_id: number; // opcional, útil para redirección
+  product_id: number;
 };
 
 const COUPON_SECTIONS = [
@@ -34,7 +33,7 @@ const COUPON_SECTIONS = [
   { id: 8, title: 'Menús McCafé' },
 ];
 
-export default function Coupons() {
+export default function Cupones() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -63,14 +62,12 @@ export default function Coupons() {
   };
 
   const handleCouponPress = (coupon: Coupon) => {
-    // Redirige al producto con el cupón aplicado
     router.push({
       pathname: '/product',
       params: { id: coupon.product_id, couponId: coupon.id },
     });
   };
 
-  // Simulamos distribución por sección (en producción, agrupa por lógica real)
   const couponsBySection = COUPON_SECTIONS.map((section, index) => ({
     ...section,
     items: coupons.slice(index * 2, index * 2 + 3).filter(Boolean),
@@ -90,9 +87,9 @@ export default function Coupons() {
         {/* Header con logo y autenticación */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>Mc Donald's Azul</Text>
+            <Text style={styles.logo}>M</Text>
           </View>
-
+          <Text style={styles.headerTitle}>Cupones</Text>
           {!isAuthenticated ? (
             <View style={styles.authButtonsContainer}>
               <TouchableOpacity
@@ -151,7 +148,6 @@ export default function Coupons() {
           </View>
         ))}
 
-        {/* Espaciado para tabs */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
@@ -180,8 +176,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
   },
-
-  // --- Header (copiado de Home) ---
   header: {
     backgroundColor: '#DA291C',
     paddingVertical: 16,
@@ -205,6 +199,11 @@ const styles = StyleSheet.create({
     textShadowColor: '#292929',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 0,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   authButtonsContainer: {
     display: 'flex',
@@ -245,13 +244,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-
-  // --- Búsqueda y secciones ---
   searchBar: {
     backgroundColor: '#fff',
     borderRadius: 8,
     padding: 12,
     marginHorizontal: 20,
+    marginTop: 20,
     marginBottom: 24,
     borderWidth: 1,
     borderColor: '#ddd',
@@ -264,11 +262,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: 24,
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#292929',
   },
@@ -280,7 +277,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 12,
-    marginRight: 16,
+    marginLeft: 20,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -307,6 +304,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   bottomSpacing: {
-    height: 100,
+    height: 80,
   },
 });

@@ -1,204 +1,317 @@
-// /app/restaurants.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
-  Platform,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+  Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../context/AuthContext';
-import api from '../../config/api';
 import * as Location from 'expo-location';
-import CustomModal from '../components/CustomModal';
-import { reverseGeocode } from '../utils/geocoding';
-
-type Address = {
-  id: number;
-  label: string;
-  street: string;
-  city: string;
-  latitude: number | null;
-  longitude: number | null;
-};
+import { useAuth } from '../context/AuthContext';
+import api, { API_URL } from '../../config/api';
 
 type Restaurant = {
   id: number;
   name: string;
   address: string;
-  latitude: number;
-  longitude: number;
+  phone?: string;
+  latitude?: number;
+  longitude?: number;
+  image_url?: string;
+  is_open: boolean;
+  opening_hours?: string;
 };
 
 export default function Restaurants() {
   const router = useRouter();
-  const { user, updateUser } = useAuth();
-  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+  const { user, updateUser, isAuthenticated } = useAuth();
+  const [address, setAddress] = useState('');
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [loadingUpdate, setLoadingUpdate] = useState(false);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(true);
+  const [saved, setSaved] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState({ visible: false, title: '', message: '' });
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.address) {
+      setAddress(user.address);
+    }
+    loadRestaurants();
+  }, [user]);
 
-  const loadData = async () => {
+  const loadRestaurants = async () => {
     try {
-      setLoading(true);
-      const [addressesRes, restaurantsRes] = await Promise.all([
-        api.get('/user/addresses'),
-        api.get('/restaurants'),
-      ]);
-      setSavedAddresses(addressesRes.data.addresses || []);
-      setRestaurants(restaurantsRes.data.restaurants || []);
-    } catch (error: any) {
-      console.error('Error en Restaurants:', error);
-      setModal({
-        visible: true,
-        title: 'Error',
-        message: error.response?.data?.message || 'No se pudieron cargar los datos.',
-      });
+      setLoadingRestaurants(true);
+      const res = await api.get('/restaurants');
+      setRestaurants(res.data.restaurants || []);
+    } catch (error) {
+      console.error('Error loading restaurants:', error);
+      setRestaurants([]);
     } finally {
-      setLoading(false);
+      setLoadingRestaurants(false);
     }
   };
 
-  const handleSelectRestaurant = (restaurant: Restaurant) => {
-    // Guardar en contexto o localStorage para usar en Home
-    updateUser({ selectedRestaurant: restaurant });
-    router.push('/'); // Vuelve a Home con el restaurante seleccionado
-  };
-
-  const handleSelectAddress = (address: Address) => {
-    updateUser({
-      address: `${address.street}, ${address.city}`,
-      latitude: address.latitude,
-      longitude: address.longitude,
-    });
-    router.push('/');
-  };
-
-  const handleUseCurrentLocation = async () => {
-    if (Platform.OS === 'web') {
-      setModal({
-        visible: true,
-        title: 'Ubicación',
-        message: 'La ubicación actual no está disponible en navegador.',
+  const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'McDonaldsApp/1.0', 'Accept-Language': 'es' }
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.address) {
+          const addr = data.address;
+          const parts = [
+            addr.road,
+            addr.house_number,
+            addr.neighbourhood,
+            addr.suburb,
+            addr.city || addr.town || addr.village,
+            addr.state,
+            addr.postcode ? `CP ${addr.postcode}` : null,
+            addr.country
+          ].filter(Boolean);
+          return parts.length > 0 ? parts.join(', ') : data.display_name;
+        }
+      }
+      return `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+    } catch (error) {
+      return `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+    }
+  };
+
+  const handleGetLocation = async () => {
+    try {
+      setLoadingLocation(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Se necesita acceso a la ubicación');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = location.coords;
+
+      const addressStr = await getAddressFromCoords(latitude, longitude);
+      await api.put('/profile/location', { latitude, longitude, address: addressStr });
+
+      setAddress(addressStr);
+      await updateUser({ address: addressStr, latitude, longitude });
+      Alert.alert('Éxito', `Ubicación actualizada\n${addressStr}`);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo obtener la ubicación');
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
+  const handleUpdateLocation = async () => {
+    if (!address.trim()) {
+      Alert.alert('Error', 'Ingresa una dirección');
       return;
     }
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setModal({
-          visible: true,
-          title: 'Permiso denegado',
-          message: 'Necesitamos acceso a tu ubicación para continuar.',
-        });
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-
-      // Geocodificar
-      // Geocodificar usando TU backend (sin CORS)
-      const displayAddress = await reverseGeocode(latitude, longitude);
-
-      // Guardar dirección
-      await api.post('/user/addresses', {
-        street: displayAddress,
-        city: '',
-        latitude,
-        longitude,
-        is_default: false,
+      setLoadingUpdate(true);
+      await api.put('/profile/location', {
+        latitude: user?.latitude || 0,
+        longitude: user?.longitude || 0,
+        address: address.trim()
       });
 
-      updateUser({ address: displayAddress, latitude, longitude });
-      router.push('/');
-    } catch (error) {
-      setModal({
-        visible: true,
-        title: 'Error',
-        message: 'No se pudo obtener tu ubicación.',
-      });
+      await updateUser({ address: address.trim() });
+      Alert.alert('Éxito', 'Ubicación actualizada');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error: any) {
+      Alert.alert('Error', error?.response?.data?.error || 'Error al actualizar');
+    } finally {
+      setLoadingUpdate(false);
     }
+  };
+
+  const getImageUrl = (imageUrl?: string | null) => {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('http')) return imageUrl;
+    return `${API_URL.replace('/api', '')}${imageUrl}`;
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Botones de tipo de pedido */}
-        <View style={styles.orderTypeContainer}>
-          <TouchableOpacity style={[styles.orderButton, styles.pickupButton]}>
-            <Text style={styles.orderButtonText}>Pedí y Retirá</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.orderButton, styles.deliveryButton]}>
-            <Text style={styles.orderButtonText}>McDelivery</Text>
-          </TouchableOpacity>
+      {/* Header con logo y autenticación */}
+      <View style={styles.header}>
+        <View style={styles.logoContainer}>
+          <Text style={styles.logo}>M</Text>
         </View>
-
-        {/* Buscar restaurante */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Busca un restaurante para recoger tu pedido</Text>
-          <View style={styles.searchBar}>
-            <Text style={styles.searchPlaceholder}>Buscar un restaurante</Text>
-          </View>
-          {restaurants.map((r) => (
+        <Text style={styles.headerTitle}>Restaurantes</Text>
+        {!isAuthenticated ? (
+          <View style={styles.authButtonsContainer}>
             <TouchableOpacity
-              key={r.id}
-              style={styles.restaurantItem}
-              onPress={() => handleSelectRestaurant(r)}
+              style={styles.loginButton}
+              onPress={() => router.push('/signin')}
             >
-              <Text style={styles.restaurantName}>{r.name}</Text>
-              <Text style={styles.restaurantAddress}>{r.address}</Text>
+              <Text style={styles.loginButtonText}>Ingresar</Text>
             </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* Dirección de entrega */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ingresa tu dirección para la entrega del pedido</Text>
-          <TouchableOpacity style={styles.locationButton} onPress={handleUseCurrentLocation}>
-            <Text style={styles.locationButtonText}>📍 Usar mi ubicación actual</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.registerButton}
+              onPress={() => router.push('/register')}
+            >
+              <Text style={styles.registerButtonText}>Registrarse</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.welcomeContainer}>
+            <Text style={styles.welcomeText}>
+              ¡Hola, {user?.username || user?.email}! 👋
+            </Text>
+          </View>
+        )}
+      </View>
 
-          <View style={styles.searchBar}>
-            <Text style={styles.searchPlaceholder}>Ingresa una dirección</Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Card de dirección */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>📍 Tu Dirección de Entrega</Text>
+          <Text style={styles.helperText}>
+            Ingresa tu dirección para encontrar los restaurantes cercanos
+          </Text>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              style={styles.input}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Calle, número, ciudad..."
+              multiline
+              placeholderTextColor="#999"
+            />
           </View>
 
-          {savedAddresses.length > 0 && (
-            <View style={styles.savedAddressesSection}>
-              <Text style={styles.savedTitle}>Direcciones guardadas</Text>
-              {savedAddresses.map((addr) => (
-                <View key={addr.id} style={styles.addressRow}>
-                  <TouchableOpacity
-                    style={styles.addressTouchable}
-                    onPress={() => handleSelectAddress(addr)}
-                  >
-                    <Text>{addr.street}</Text>
-                  </TouchableOpacity>
-                  {/* Tres puntos verticales simulados */}
-                  <TouchableOpacity>
-                    <Text>⋮</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      </ScrollView>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                styles.actionButtonHalf,
+                saved && styles.saveButtonSuccess
+              ]}
+              onPress={handleUpdateLocation}
+              disabled={loadingUpdate || saved}
+            >
+              {loadingUpdate ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionButtonText}>
+                  {saved ? '✓ ¡Guardado!' : '💾 Guardar'}
+                </Text>
+              )}
+            </TouchableOpacity>
 
-      <CustomModal
-        visible={modal.visible}
-        title={modal.title}
-        message={modal.message}
-        onConfirm={() => setModal({ ...modal, visible: false })}
-        confirmText="Aceptar"
-      />
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonHalf, styles.actionButtonGPS]}
+              onPress={handleGetLocation}
+              disabled={loadingLocation}
+            >
+              {loadingLocation ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionButtonText}>📍 Mi ubicación</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Lista de restaurantes */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Restaurantes Disponibles</Text>
+        </View>
+
+        {loadingRestaurants ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FFBC0D" />
+            <Text style={styles.loadingText}>Cargando restaurantes...</Text>
+          </View>
+        ) : restaurants.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🏪</Text>
+            <Text style={styles.emptyTitle}>No hay restaurantes disponibles</Text>
+            <Text style={styles.emptyText}>
+              Próximamente agregaremos más ubicaciones
+            </Text>
+          </View>
+        ) : (
+          restaurants.map((restaurant) => (
+            <View key={restaurant.id} style={styles.restaurantCard}>
+              {restaurant.image_url && (
+                <Image
+                  source={{ uri: getImageUrl(restaurant.image_url)! }}
+                  style={styles.restaurantImage}
+                  resizeMode="cover"
+                />
+              )}
+
+              <View style={styles.restaurantInfo}>
+                <View style={styles.restaurantHeader}>
+                  <Text style={styles.restaurantName}>{restaurant.name}</Text>
+                  <View style={[
+                    styles.statusBadge,
+                    restaurant.is_open ? styles.statusOpen : styles.statusClosed
+                  ]}>
+                    <Text style={styles.statusText}>
+                      {restaurant.is_open ? '🟢 Abierto' : '🔴 Cerrado'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.restaurantDetail}>
+                  <Text style={styles.detailIcon}>📍</Text>
+                  <Text style={styles.detailText}>{restaurant.address}</Text>
+                </View>
+
+                {restaurant.phone && (
+                  <View style={styles.restaurantDetail}>
+                    <Text style={styles.detailIcon}>📞</Text>
+                    <Text style={styles.detailText}>{restaurant.phone}</Text>
+                  </View>
+                )}
+
+                {restaurant.opening_hours && (
+                  <View style={styles.restaurantDetail}>
+                    <Text style={styles.detailIcon}>🕐</Text>
+                    <Text style={styles.detailText}>{restaurant.opening_hours}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[
+                    styles.selectButton,
+                    !restaurant.is_open && styles.selectButtonDisabled
+                  ]}
+                  disabled={!restaurant.is_open}
+                  onPress={() => {
+                    Alert.alert('Restaurante seleccionado', `Pedirás desde ${restaurant.name}`);
+                  }}
+                >
+                  <Text style={styles.selectButtonText}>
+                    {restaurant.is_open ? '🛍️ Hacer pedido' : '⏰ Cerrado'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
     </View>
   );
 }
@@ -208,95 +321,268 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  orderTypeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  orderButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  pickupButton: {
+  header: {
     backgroundColor: '#DA291C',
-    marginRight: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  deliveryButton: {
-    backgroundColor: '#FFBC0D',
-    marginLeft: 8,
+  logoContainer: {
+    flex: 1,
   },
-  orderButtonText: {
+  logo: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FFBC0D',
+    textShadowColor: '#292929',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 0,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#fff',
+  },
+  authButtonsContainer: {
+    display: 'flex',
+    gap: 8,
+  },
+  loginButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  loginButtonText: {
+    color: '#DA291C',
     fontWeight: 'bold',
     fontSize: 14,
   },
-  section: {
-    marginBottom: 24,
+  registerButton: {
+    backgroundColor: '#FFBC0D',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
   },
-  sectionTitle: {
-    fontSize: 16,
+  registerButtonText: {
+    color: '#292929',
     fontWeight: 'bold',
+    fontSize: 14,
+  },
+  welcomeContainer: {
+    flex: 2,
+    alignItems: 'flex-end',
+  },
+  welcomeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  card: {
+    backgroundColor: '#fff',
+    width: '100%',
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
     marginBottom: 8,
+  },
+  helperText: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 16,
+  },
+  inputGroup: {
+    marginBottom: 12,
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    padding: 12,
+    borderRadius: 8,
+    fontSize: 15,
+    backgroundColor: '#FAFAFA',
+    minHeight: 80,
+    textAlignVertical: 'top',
     color: '#292929',
   },
-  searchBar: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
   },
-  searchPlaceholder: {
-    color: '#999',
+  actionButton: {
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  restaurantItem: {
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
+  actionButtonHalf: {
+    flex: 1,
+    backgroundColor: '#FFBC0D',
   },
-  restaurantName: {
+  actionButtonGPS: {
+    backgroundColor: '#27AE60',
+  },
+  saveButtonSuccess: {
+    backgroundColor: '#27AE60',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  restaurantAddress: {
-    fontSize: 12,
+  sectionHeader: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#292929',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
     color: '#666',
   },
-  locationButton: {
-    padding: 12,
-    backgroundColor: '#e0f7fa',
-    borderRadius: 8,
+  emptyContainer: {
+    backgroundColor: '#fff',
+    padding: 40,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  locationButtonText: {
-    color: '#006064',
-    fontWeight: '600',
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
   },
-  savedAddressesSection: {
-    marginTop: 16,
-  },
-  savedTitle: {
-    fontWeight: '600',
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
     marginBottom: 8,
   },
-  addressRow: {
+  emptyText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  restaurantCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  restaurantImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#F5F5F5',
+  },
+  restaurantInfo: {
+    padding: 16,
+  },
+  restaurantHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    marginBottom: 12,
   },
-  addressTouchable: {
+  restaurantName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
     flex: 1,
+    marginRight: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusOpen: {
+    backgroundColor: '#E8F5E9',
+  },
+  statusClosed: {
+    backgroundColor: '#FFEBEE',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  restaurantDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  detailIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  selectButton: {
+    backgroundColor: '#FFBC0D',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  selectButtonDisabled: {
+    backgroundColor: '#E0E0E0',
+  },
+  selectButtonText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#292929',
+  },
+  bottomSpacing: {
+    height: 80,
   },
 });
