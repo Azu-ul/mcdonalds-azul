@@ -37,39 +37,26 @@ type Flyer = {
   link?: string;
 };
 
-const CATEGORIES = [
-  { id: 1, name: 'McCombos', icon: '🍔' },
-  { id: 2, name: 'Hamburguesas', icon: '🍔' },
-  { id: 3, name: 'Cajita Feliz', icon: '🎁' },
-  { id: 4, name: 'Pollo y McNuggets', icon: '🍗' },
-  { id: 5, name: 'Para Acompañar', icon: '🍟' },
-  { id: 6, name: 'McShakes', icon: '🥤' },
-  { id: 7, name: 'Postres', icon: '🍦' },
-  { id: 8, name: 'Ensaladas', icon: '🥗' },
-  { id: 9, name: 'Bebidas', icon: '🥤' },
-  { id: 10, name: 'Sin TACC', icon: '🌾' },
-  { id: 11, name: 'Menús McCafé', icon: '☕' },
-  { id: 12, name: 'Bebidas McCafé', icon: '☕' },
-  { id: 13, name: 'Comidas McCafé', icon: '🥐' },
-];
-
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated, updateUser } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('McCombos');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [flyers, setFlyers] = useState<Flyer[]>([]);
   const [isRestaurantPickup, setIsRestaurantPickup] = useState(false);
-  const [selectedRestaurant, setSelectedRestaurant] = useState<{name: string, address: string} | null>(null);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<{ name: string, address: string } | null>(null);
+  const [categories, setCategories] = useState<{ id: number; name: string; icon: string }[]>([]);
+
 
   useEffect(() => {
     loadProducts();
     loadUserAddress();
     loadCart();
     loadFlyers();
+    loadCategories();
     checkPickupType();
   }, []);
 
@@ -80,6 +67,23 @@ export default function Home() {
       checkPickupType();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0].name);
+    }
+  }, [categories]);
+
+
+  const loadCategories = async () => {
+    try {
+      const res = await api.get('/categories');
+      setCategories(res.data.categories || []);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      setCategories([]);
+    }
+  };
 
   const loadProducts = async () => {
     try {
@@ -99,7 +103,7 @@ export default function Home() {
       const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
       const restaurantName = await AsyncStorage.getItem('restaurant_name');
       const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
-      
+
       console.log('Check pickup type:', {
         isRestaurant,
         restaurantName,
@@ -108,7 +112,7 @@ export default function Home() {
       });
 
       setIsRestaurantPickup(isRestaurant === 'true');
-      
+
       if (isRestaurant === 'true' && restaurantName) {
         setSelectedRestaurant({
           name: restaurantName,
@@ -312,7 +316,7 @@ export default function Home() {
 
         {/* Carrusel de Categorías */}
         <CategoryCarousel
-          categories={CATEGORIES}
+          categories={categories}
           selectedCategory={selectedCategory}
           onCategoryPress={handleCategoryPress}
         />

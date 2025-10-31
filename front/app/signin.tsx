@@ -16,12 +16,8 @@ type FormData = {
 };
 
 const schema = yup.object({
-  email: yup.string()
-    .required('El email es requerido')
-    .email('Email inválido'),
-  password: yup.string()
-    .required('Contraseña requerida')
-    .min(6, 'Mínimo 6 caracteres'),
+  email: yup.string().required('El email es requerido').email('Email inválido'),
+  password: yup.string().required('Contraseña requerida').min(6, 'Mínimo 6 caracteres'),
 }).required();
 
 export default function Login() {
@@ -34,7 +30,6 @@ export default function Login() {
   const [processingAuth, setProcessingAuth] = useState(false);
   const [urlChecked, setUrlChecked] = useState(false);
 
-  // Solo para mobile nativo
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -46,7 +41,6 @@ export default function Login() {
     mode: 'onTouched'
   });
 
-  // Para mobile nativo
   useEffect(() => {
     if (response?.type === 'success' && Platform.OS !== 'web') {
       const { id_token } = response.params;
@@ -54,7 +48,6 @@ export default function Login() {
     }
   }, [response]);
 
-  // Para web - verificar URL inmediatamente al cargar el componente
   useEffect(() => {
     if (Platform.OS === 'web' && !urlChecked) {
       checkURLForToken();
@@ -62,106 +55,68 @@ export default function Login() {
   }, [urlChecked]);
 
   const checkURLForToken = () => {
-    console.log('🔍 Verificando URL por tokens de Google...');
-    
-    const currentUrl = window.location.href;
-    console.log('URL completa:', currentUrl);
-    
-    // Buscar en hash (#)
     if (window.location.hash) {
-      console.log('📌 Hash encontrado:', window.location.hash);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const idToken = hashParams.get('id_token');
-      const accessToken = hashParams.get('access_token');
-      
-      console.log('Token ID en hash:', idToken);
-      console.log('Access Token en hash:', accessToken);
-      
       if (idToken) {
-        console.log('✅ Token ID encontrado en hash, procesando...');
         setUrlChecked(true);
         handleGoogleAuth(idToken);
         return;
       }
     }
-    
-    // Buscar en query parameters (?)
+
     if (window.location.search) {
-      console.log('📌 Query parameters encontrados:', window.location.search);
       const searchParams = new URLSearchParams(window.location.search);
       const idToken = searchParams.get('id_token');
-      const accessToken = searchParams.get('access_token');
-      
-      console.log('Token ID en query:', idToken);
-      console.log('Access Token en query:', accessToken);
-      
       if (idToken) {
-        console.log('✅ Token ID encontrado en query, procesando...');
         setUrlChecked(true);
         handleGoogleAuth(idToken);
         return;
       }
     }
-    
-    console.log('❌ No se encontraron tokens en la URL');
+
     setUrlChecked(true);
   };
 
   const handleGoogleAuth = async (idToken: string) => {
-    if (processingAuth) {
-      console.log('⚠️ Autenticación ya en proceso, ignorando...');
-      return;
-    }
+    if (processingAuth) return;
 
     try {
       setProcessingAuth(true);
       setLoading(true);
-      console.log('🚀 Iniciando autenticación con token de Google...');
-      
-      // Limpiar la URL ANTES de procesar la autenticación
+
       if (Platform.OS === 'web') {
-        console.log('🧹 Limpiando URL...');
         window.history.replaceState({}, document.title, window.location.pathname);
       }
-      
+
       const res = await api.post('/auth/google', { id_token: idToken });
       const { token, user } = res.data;
-      
-      console.log('✅ Usuario autenticado:', user.email);
-      
-      // Obtener roles del usuario
+
       try {
         const rolesRes = await api.get(`/user/${user.id}/roles`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         user.roles = rolesRes.data.roles || [];
-        console.log('👤 Roles obtenidos:', user.roles);
       } catch (rolesError) {
         console.warn('⚠️ No se pudieron obtener los roles:', rolesError);
         user.roles = [];
       }
-      
+
       await authLogin(token, user);
-      console.log('🔀 Redirigiendo a home...');
       router.replace('/');
-      
+
     } catch (err: any) {
-      console.error('❌ Error en autenticación Google:', err);
-      
       let message = 'Error al autenticar con Google';
-      
       if (err?.response?.data?.error) {
         message = err.response.data.error;
-        
         if (message.includes('ya está registrado')) {
           message += '. Por favor inicia sesión con email y contraseña.';
         }
       }
-      
       setModalTitle('Error');
       setModalMessage(message);
       setModalVisible(true);
-      
+
     } finally {
       setLoading(false);
       setProcessingAuth(false);
@@ -173,12 +128,12 @@ export default function Login() {
       setLoading(true);
       const res = await api.post('/auth/login', data);
       const { token, user } = res.data;
-      
+
       const rolesRes = await api.get(`/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       user.roles = rolesRes.data.roles || [];
-      
+
       await authLogin(token, user);
       router.replace('/');
     } catch (err: any) {
@@ -192,12 +147,10 @@ export default function Login() {
   };
 
   const handleGoogleLoginWeb = () => {
-    console.log('🔗 Iniciando flujo de Google OAuth...');
-    
     const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
     const redirectUri = window.location.origin;
     const scope = 'openid profile email';
-    const responseType = 'id_token'; // Cambiado a solo id_token para mayor compatibilidad
+    const responseType = 'id_token';
     const nonce = Math.random().toString(36).substring(7);
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -208,20 +161,12 @@ export default function Login() {
       `nonce=${nonce}&` +
       `prompt=select_account`;
 
-    console.log('📍 Redirigiendo a:', authUrl);
-    
-    // Usar popup en lugar de redirección para mejor experiencia
     const width = 500;
     const height = 600;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
 
-    const popup = window.open(
-      authUrl,
-      'Google Login',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-
+    const popup = window.open(authUrl, 'Google Login', `width=${width},height=${height},left=${left},top=${top}`);
     if (!popup) {
       setModalTitle('Error');
       setModalMessage('Por favor permite los popups para esta página');
@@ -229,37 +174,29 @@ export default function Login() {
       return;
     }
 
-    // Verificar periódicamente el estado del popup
     const checkPopup = setInterval(() => {
       try {
         if (popup.closed) {
           clearInterval(checkPopup);
           setLoading(false);
-          console.log('📌 Popup cerrado por el usuario');
           return;
         }
 
-        // Intentar leer la URL del popup (puede fallar por CORS)
         if (popup.location.href.startsWith(redirectUri)) {
           const hash = popup.location.hash;
           if (hash) {
             const params = new URLSearchParams(hash.substring(1));
             const idToken = params.get('id_token');
-            
             if (idToken) {
-              console.log('✅ Token obtenido del popup');
               popup.close();
               clearInterval(checkPopup);
               handleGoogleAuth(idToken);
             }
           }
         }
-      } catch (error) {
-        // Error de CORS es normal, ignorar
-      }
+      } catch (error) {}
     }, 500);
 
-    // Timeout después de 2 minutos
     setTimeout(() => {
       if (popup && !popup.closed) {
         popup.close();
@@ -285,7 +222,6 @@ export default function Login() {
     }
   };
 
-  // Mostrar loader durante la autenticación automática
   if (processingAuth) {
     return (
       <View style={styles.loadingContainer}>
@@ -302,7 +238,6 @@ export default function Login() {
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>M</Text>
           </View>
-
           <Text style={styles.title}>¡Bienvenido!</Text>
           <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
 
@@ -353,11 +288,7 @@ export default function Login() {
             onPress={handleSubmit(onSubmit)}
             disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Ingresar</Text>
-            )}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Ingresar</Text>}
           </TouchableOpacity>
 
           <View style={styles.divider}>
@@ -380,10 +311,7 @@ export default function Login() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.push('/')}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
           <Text style={styles.backButtonText}>← Volver al inicio</Text>
         </TouchableOpacity>
       </View>
@@ -401,162 +329,29 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    padding: 20
-  },
-  scaledContainer: {
-    transform: [{ scale: 0.85 }],
-    width: '100%',
-    alignItems: 'center',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#fff',
-    padding: 32,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  logo: {
-    fontSize: 60,
-    fontWeight: 'bold',
-    color: '#FFBC0D',
-    textShadowColor: '#DA291C',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 0,
-  },
-  title: {
-    fontSize: 28,
-    marginBottom: 8,
-    textAlign: 'center',
-    color: '#292929',
-    fontWeight: 'bold'
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24
-  },
-  input: {
-    width: '100%',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    padding: 14,
-    marginBottom: 8,
-    borderRadius: 10,
-    backgroundColor: '#FAFAFA',
-    fontSize: 15,
-    color: '#292929',
-  },
-  inputError: {
-    borderColor: '#DA291C',
-  },
-  error: {
-    color: '#DA291C',
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  button: {
-    backgroundColor: '#FFBC0D',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 16,
-    shadowColor: '#FFBC0D',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  buttonDisabled: {
-    opacity: 0.6
-  },
-  buttonText: {
-    color: '#292929',
-    fontSize: 16,
-    fontWeight: 'bold'
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E0E0E0'
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    color: '#999',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  socialButton: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    padding: 13,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 10,
-  },
-  socialButtonText: {
-    fontSize: 15,
-    color: '#292929',
-    fontWeight: '600'
-  },
-  link: {
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
-    fontSize: 14,
-  },
-  linkBold: {
-    color: '#DA291C',
-    fontWeight: 'bold',
-  },
-  backButton: {
-    marginTop: 20,
-    padding: 12,
-  },
-  backButtonText: {
-    color: '#DA291C',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5', padding: 20 },
+  scaledContainer: { transform: [{ scale: 0.85 }], width: '100%', alignItems: 'center' },
+  card: { width: '100%', maxWidth: 380, backgroundColor: '#fff', padding: 32, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 8 },
+  logoContainer: { alignItems: 'center', marginBottom: 20 },
+  logo: { fontSize: 60, fontWeight: 'bold', color: '#FFBC0D', textShadowColor: '#DA291C', textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
+  title: { fontSize: 28, marginBottom: 8, textAlign: 'center', color: '#292929', fontWeight: 'bold' },
+  subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 24 },
+  input: { width: '100%', borderWidth: 2, borderColor: '#E0E0E0', padding: 14, marginBottom: 8, borderRadius: 10, backgroundColor: '#FAFAFA', fontSize: 15, color: '#292929' },
+  inputError: { borderColor: '#DA291C' },
+  error: { color: '#DA291C', alignSelf: 'flex-start', marginBottom: 8, fontSize: 12, fontWeight: '500' },
+  button: { backgroundColor: '#FFBC0D', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 16, marginBottom: 16, shadowColor: '#FFBC0D', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 4 },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: '#292929', fontSize: 16, fontWeight: 'bold' },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E0E0E0' },
+  dividerText: { marginHorizontal: 12, color: '#999', fontSize: 13, fontWeight: '500' },
+  socialButton: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#E0E0E0', padding: 13, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  googleIcon: { width: 20, height: 20, marginRight: 10 },
+  socialButtonText: { fontSize: 15, color: '#292929', fontWeight: '600' },
+  link: { color: '#666', textAlign: 'center', marginTop: 8, fontSize: 14 },
+  linkBold: { color: '#DA291C', fontWeight: 'bold' },
+  backButton: { marginTop: 20, padding: 12 },
+  backButtonText: { color: '#DA291C', fontSize: 15, fontWeight: '600' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  loadingText: { marginTop: 16, fontSize: 16, color: '#666' },
 });

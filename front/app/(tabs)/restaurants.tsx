@@ -42,6 +42,7 @@ export default function Restaurants() {
   const [activeTab, setActiveTab] = useState<Tab>('delivery');
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deliverySearchQuery, setDeliverySearchQuery] = useState('');
 
   // Pedí y Retirá
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -49,6 +50,7 @@ export default function Restaurants() {
 
   // McDelivery
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [filteredAddresses, setFilteredAddresses] = useState<SavedAddress[]>([]);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
 
@@ -83,6 +85,18 @@ export default function Restaurants() {
       setFilteredRestaurants(filtered);
     }
   }, [searchQuery, restaurants]);
+
+  useEffect(() => {
+    if (deliverySearchQuery.trim() === '') {
+      setFilteredAddresses(savedAddresses);
+    } else {
+      const filtered = savedAddresses.filter(addr =>
+        addr.label.toLowerCase().includes(deliverySearchQuery.toLowerCase()) ||
+        addr.address.toLowerCase().includes(deliverySearchQuery.toLowerCase())
+      );
+      setFilteredAddresses(filtered);
+    }
+  }, [deliverySearchQuery, savedAddresses]);
 
   // Agrega este useEffect para debug
   useEffect(() => {
@@ -144,13 +158,16 @@ export default function Restaurants() {
             }));
           console.log('Direcciones procesadas:', addresses);
           setSavedAddresses(addresses);
+          setFilteredAddresses(addresses);
         } else {
           console.log('No hay direcciones en BD');
           setSavedAddresses([]);
+          setFilteredAddresses([]);
         }
       } else {
         console.log('Usuario no autenticado, sin direcciones');
         setSavedAddresses([]);
+        setFilteredAddresses([]);
       }
     } catch (error) {
       console.error('Error loading saved addresses from DB:', error);
@@ -161,12 +178,15 @@ export default function Restaurants() {
           const storedAddresses = JSON.parse(stored);
           console.log('Fallback a AsyncStorage por error:', storedAddresses);
           setSavedAddresses(storedAddresses);
+          setFilteredAddresses(storedAddresses);
         } else {
           setSavedAddresses([]);
+          setFilteredAddresses([]);
         }
       } catch (fallbackError) {
         console.error('Error en fallback:', fallbackError);
         setSavedAddresses([]);
+        setFilteredAddresses([]);
       }
     }
   };
@@ -175,6 +195,7 @@ export default function Restaurants() {
     try {
       // SOLO actualizar estado local - la base de datos es la fuente de verdad
       setSavedAddresses(addresses);
+      setFilteredAddresses(addresses);
       console.log('Estado local actualizado con:', addresses.length, 'direcciones');
 
       // Opcional: mantener AsyncStorage como cache, pero no es crítico
@@ -608,6 +629,14 @@ export default function Restaurants() {
                     </View>
                   </TouchableOpacity>
                 ))}
+
+                {searchQuery.trim() !== '' && filteredRestaurants.length === 0 && (
+                  <View style={styles.noResultsContainer}>
+                    <Text style={styles.noResultsText}>
+                      No se encontraron restaurantes que coincidan con "{searchQuery}"
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -619,6 +648,8 @@ export default function Restaurants() {
                 style={styles.searchInput}
                 placeholder="Ingresa una dirección"
                 placeholderTextColor="#999"
+                value={deliverySearchQuery}
+                onChangeText={setDeliverySearchQuery}
               />
             </View>
 
@@ -661,11 +692,11 @@ export default function Restaurants() {
               </TouchableOpacity>
             ) : (
               /* MOSTRAR DIRECCIONES GUARDADAS SOLO SI ESTÁ AUTENTICADO */
-              savedAddresses.length > 0 && (
+              filteredAddresses.length > 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Direcciones guardadas</Text>
                   <View style={styles.addressesList}>
-                    {savedAddresses.map((address) => (
+                    {filteredAddresses.map((address) => (
                       <View key={address.id} style={styles.addressCard}>
                         <TouchableOpacity
                           style={styles.addressContent}
@@ -690,6 +721,14 @@ export default function Restaurants() {
                         </TouchableOpacity>
                       </View>
                     ))}
+
+                    {deliverySearchQuery.trim() !== '' && filteredAddresses.length === 0 && (
+                      <View style={styles.noResultsContainer}>
+                        <Text style={styles.noResultsText}>
+                          No se encontraron direcciones que coincidan con "{deliverySearchQuery}"
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </>
               )
@@ -923,7 +962,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#292929',
   },
-  // Resto de los estilos...
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -973,7 +1011,9 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#292929',
+    color: '#b40000ff',
+    // @ts-ignore
+    outlineColor: "#ffffffff",
   },
   restaurantsList: {
     gap: 12,
@@ -1193,7 +1233,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  // Agregar estos estilos al StyleSheet
   deleteModalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -1288,5 +1327,16 @@ const styles = StyleSheet.create({
   },
   currentLocationTextDisabled: {
     color: '#999',
+  },
+  noResultsContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noResultsText: {
+    fontSize: 15,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
