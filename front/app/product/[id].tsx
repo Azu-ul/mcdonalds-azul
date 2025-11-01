@@ -53,6 +53,7 @@ type Product = {
     base_price: number;
     category: string;
     image_url?: string;
+    is_combo: boolean;
     sizes: SizeOption[];
     ingredients: Ingredient[];
     sides: SideOption[];
@@ -165,9 +166,9 @@ export default function ProductDetail() {
     };
 
     const isFormValid = () => {
-        if (!selectedSize || !selectedSide || !selectedDrink) return false;
+        if (!selectedSize) return false;
 
-        // Verificar que todos los ingredientes requeridos estén seleccionados
+        // Ingredientes requeridos
         if (product?.ingredients) {
             for (const ing of product.ingredients) {
                 if (ing.is_required && (!ingredients[ing.id] || ingredients[ing.id] === 0)) {
@@ -176,26 +177,55 @@ export default function ProductDetail() {
             }
         }
 
+        // Acompañamiento y bebida solo si es combo
+        if (product?.is_combo) {
+            if (!selectedSide || !selectedDrink) return false;
+        }
+
         return true;
     };
 
-    const handleAddToCart = () => {
+    const handleAddToCart = async () => {
         if (!isAuthenticated) {
             alert('Debes iniciar sesión para agregar productos al carrito');
             return;
         }
 
-        console.log('Agregando al carrito:', {
-            product,
-            size: selectedSize,
-            side: selectedSide,
-            drink: selectedDrink,
-            ingredients,
-            quantity,
-            total: calculateTotalPrice()
-        });
+        if (!product || !selectedSize) {
+            alert('Selecciona un tamaño');
+            return;
+        }
 
-        router.replace('/');
+        // Validar acompañamiento y bebida SOLO si es combo
+        if (product.is_combo) {
+            if (!selectedSide || !selectedDrink) {
+                alert('Completa todas las selecciones obligatorias del combo');
+                return;
+            }
+        }
+
+        try {
+            const customizations = {
+                ingredients,
+                condiments,
+            };
+
+            const payload = {
+                product_id: product.id,
+                size_id: selectedSize.id,
+                side_id: product.is_combo ? selectedSide?.id : null,   // ⬅️ Solo si es combo
+                drink_id: product.is_combo ? selectedDrink?.id : null, // ⬅️ Solo si es combo
+                quantity,
+                customizations: JSON.stringify(customizations),
+            };
+
+            await api.post('/cart/items', payload);
+            router.replace('/');
+        } catch (error: any) {
+            console.error('Error al agregar al carrito:', error);
+            const message = error.response?.data?.message || 'No se pudo agregar al carrito';
+            alert(message);
+        }
     };
 
     const getImageUrl = (imageUrl?: string | null) => {
@@ -303,69 +333,84 @@ export default function ProductDetail() {
                         </View>
                     </View>
 
-                    {/* Personalizar hamburguesa */}
+                    {/* Personalizar hamburguesa (siempre visible si hay ingredientes) */}
                     {product.ingredients && product.ingredients.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Personalizar {product.name}</Text>
+                            <TouchableOpacity
+                                style={styles.customizeCard}
+                                onPress={() => setModalType('ingredients')}
+                            >
+                                <Image
+                                    source={{ uri: getImageUrl(product.image_url) }}
+                                    style={styles.cardIcon}
+                                    resizeMode="contain"
+                                />
+                                <View style={styles.cardContent}>
+                                    <Text style={styles.cardTitle}>{product.name}</Text>
+                                    <Text style={styles.cardSubtitle}>{getIngredientsPreview()}</Text>
+                                </View>
+                                <Text style={styles.arrow}>›</Text>
+                            </TouchableOpacity>
+
+                        </View>
+                    )}
+                </View>
+                {/* Completá tu combo (solo si es combo) */}
+                {product.is_combo && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Completá tu combo</Text>
+                            <View style={styles.obligatoryBadge}>
+                                <Text style={styles.obligatoryText}>Obligatorio</Text>
+                            </View>
+                        </View>
+
+                        {/* Acompañamiento */}
                         <TouchableOpacity
-                            style={styles.customizeCard}
-                            onPress={() => setModalType('ingredients')}
+                            style={[
+                                styles.selectionCard,
+                                selectedSide && styles.selectionCardSelected
+                            ]}
+                            onPress={() => setModalType('sides')}
                         >
-                            <Image
-                                source={{ uri: getImageUrl(product.image_url) }}
-                                style={styles.cardIcon}
-                                resizeMode="contain"
-                            />
-                            <View style={styles.cardContent}>
-                                <Text style={styles.cardTitle}>{product.name}</Text>
-                                <Text style={styles.cardSubtitle}>{getIngredientsPreview()}</Text>
+                            <View style={styles.cardLeft}>
+                                <Text style={styles.cardTitle}>Acompañamiento</Text>
+                                <Text style={[
+                                    styles.cardDescription,
+                                    selectedSide && styles.cardDescriptionSelected
+                                ]}>
+                                    {selectedSide
+                                        ? selectedSide.name
+                                        : 'Elegí una opción (obligatorio)'}
+                                </Text>
                             </View>
                             <Text style={styles.arrow}>›</Text>
                         </TouchableOpacity>
-                    )}
 
-                    {/* Acompañamiento */}
-                    <TouchableOpacity
-                        style={[
-                            styles.selectionCard,
-                            selectedSide && styles.selectionCardSelected
-                        ]}
-                        onPress={() => setModalType('sides')}
-                    >
-                        <View style={styles.cardLeft}>
-                            <Text style={styles.cardTitle}>Acompañamiento</Text>
-                            <Text style={[
-                                styles.cardDescription,
-                                selectedSide && styles.cardDescriptionSelected
-                            ]}>
-                                {selectedSide
-                                    ? selectedSide.name
-                                    : 'Elegí una opción (obligatorio)'}
-                            </Text>
-                        </View>
-                        <Text style={styles.arrow}>›</Text>
-                    </TouchableOpacity>
-
-                    {/* Bebida */}
-                    <TouchableOpacity
-                        style={[
-                            styles.selectionCard,
-                            selectedDrink && styles.selectionCardSelected
-                        ]}
-                        onPress={() => setModalType('drinks')}
-                    >
-                        <View style={styles.cardLeft}>
-                            <Text style={styles.cardTitle}>Bebida</Text>
-                            <Text style={[
-                                styles.cardDescription,
-                                selectedDrink && styles.cardDescriptionSelected
-                            ]}>
-                                {selectedDrink
-                                    ? selectedDrink.name
-                                    : 'Elegí una opción (obligatorio)'}
-                            </Text>
-                        </View>
-                        <Text style={styles.arrow}>›</Text>
-                    </TouchableOpacity>
-                </View>
+                        {/* Bebida */}
+                        <TouchableOpacity
+                            style={[
+                                styles.selectionCard,
+                                selectedDrink && styles.selectionCardSelected
+                            ]}
+                            onPress={() => setModalType('drinks')}
+                        >
+                            <View style={styles.cardLeft}>
+                                <Text style={styles.cardTitle}>Bebida</Text>
+                                <Text style={[
+                                    styles.cardDescription,
+                                    selectedDrink && styles.cardDescriptionSelected
+                                ]}>
+                                    {selectedDrink
+                                        ? selectedDrink.name
+                                        : 'Elegí una opción (obligatorio)'}
+                                </Text>
+                            </View>
+                            <Text style={styles.arrow}>›</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Condimentos adicionales */}
                 <TouchableOpacity style={styles.section} onPress={() => setModalType('condiments')}>
@@ -395,26 +440,33 @@ export default function ProductDetail() {
                     disabled={!isFormValid()}
                 >
                     <View style={styles.quantityControlBottom}>
-                    <TouchableOpacity
-                        disabled={quantity <= 1}
-                        onPress={() => setQuantity(q => Math.max(1, q - 1))}
-                        style={[styles.quantityButtonBottom, quantity <= 1 && styles.quantityButtonDisabled]}
-                    >
-                        <Text style={styles.quantityButtonTextBottom}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.quantityTextBottom}>{quantity}</Text>
-                    <TouchableOpacity
-                        disabled={quantity >= 5}
-                        onPress={() => setQuantity(q => Math.min(5, q + 1))}
-                        style={[styles.quantityButtonBottom, quantity >= 5 && styles.quantityButtonDisabled]}
-                    >
-                        <Text style={styles.quantityButtonTextBottom}>+</Text>
-                    </TouchableOpacity>
-                </View>
+                        <TouchableOpacity
+                            disabled={quantity <= 1}
+                            onPress={() => setQuantity(q => Math.max(1, q - 1))}
+                            style={[styles.quantityButtonBottom, quantity <= 1 && styles.quantityButtonDisabled]}
+                        >
+                            <Text style={styles.quantityButtonTextBottom}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.quantityTextBottom}>{quantity}</Text>
+                        <TouchableOpacity
+                            disabled={quantity >= 5}
+                            onPress={() => setQuantity(q => Math.min(5, q + 1))}
+                            style={[styles.quantityButtonBottom, quantity >= 5 && styles.quantityButtonDisabled]}
+                        >
+                            <Text style={styles.quantityButtonTextBottom}>+</Text>
+                        </TouchableOpacity>
+                    </View>
                     {!isFormValid() ? (
                         <Text style={styles.addButtonText}>
-                            {3 - (selectedSize ? 1 : 0) - (selectedSide ? 1 : 0) - (selectedDrink ? 1 : 0)}{' '}
-                            selecciones obligatorias
+                            {(() => {
+                                let missing = 0;
+                                if (!selectedSize) missing++;
+                                if (product?.is_combo) {
+                                    if (!selectedSide) missing++;
+                                    if (!selectedDrink) missing++;
+                                }
+                                return missing;
+                            })()} selecciones obligatorias
                         </Text>
                     ) : (
                         <Text style={styles.addButtonText}>Agregar</Text>
@@ -478,309 +530,309 @@ export default function ProductDetail() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#DA291C',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  backLink: {
-    fontSize: 16,
-    color: '#FFBC0D',
-    fontWeight: '600',
-  },
-  header: {
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  backArrow: {
-    fontSize: 24,
-    color: '#292929',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#292929',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  productImage: {
-    width: '100%',
-    height: 300,
-    backgroundColor: '#fff',
-  },
-  infoContainer: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderBottomWidth: 8,
-    borderBottomColor: '#F5F5F5',
-  },
-  productName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#292929',
-    marginBottom: 8,
-  },
-  productPrice: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#292929',
-    marginBottom: 12,
-  },
-  productDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  section: {
-    backgroundColor: '#fff',
-    padding: 20,
-    marginBottom: 8,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#292929',
-    marginBottom: 16,
-  },
-  obligatoryBadge: {
-    backgroundColor: '#E0E0E0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  obligatoryText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '600',
-  },
-  sizeContainer: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  sizeButton: {
-    alignItems: 'center',
-  },
-  sizeCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: '#E0E0E0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    position: 'relative',
-  },
-  sizeCircleActive: {
-    borderColor: '#FFBC0D',
-    backgroundColor: '#FFF8E1',
-  },
-  sizeLetter: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  sizeLetterActive: {
-    color: '#292929',
-  },
-  checkBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#FFBC0D',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkMark: {
-    color: '#292929',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  sizeName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#666',
-    marginBottom: 4,
-  },
-  sizeNameActive: {
-    color: '#292929',
-  },
-  sizeExtra: {
-    fontSize: 12,
-    color: '#27AE60',
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  customizeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  cardIcon: {
-    width: 60,
-    height: 60,
-    marginRight: 16,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#292929',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  arrow: {
-    fontSize: 24,
-    color: '#666',
-    fontWeight: 'bold',
-    paddingLeft: 8,
-  },
-  selectionCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  selectionCardSelected: {
-    backgroundColor: '#FFF8E1',
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  cardLeft: {
-    flex: 1,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: '#999',
-  },
-  cardDescriptionSelected: {
-    color: '#292929',
-    fontWeight: '600',
-  },
-  bottomSpacing: {
-    height: 150,
-  },
-  // --- Estilos del botón inferior ---
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  addButton: {
-    backgroundColor: '#292929',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-  },
-  addButtonDisabled: {
-    backgroundColor: '#666',
-  },
-  quantityControlBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginRight: 16,
-  },
-  quantityButtonBottom: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quantityButtonDisabled: {
-    opacity: 0.4,
-  },
-  quantityButtonTextBottom: {
-    fontSize: 20,
-    color: '#292929',
-    fontWeight: 'bold',
-  },
-  quantityTextBottom: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#292929',
-    paddingHorizontal: 12,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
-    textAlign: 'left',
-  },
-  addButtonPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    minWidth: 80,
-    textAlign: 'right',
-  },
-  condimentsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  personalizeLink: {
-    fontSize: 14,
-    color: '#DA291C',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
+    container: {
+        flex: 1,
+        backgroundColor: '#F5F5F5',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+        padding: 20,
+    },
+    errorText: {
+        fontSize: 16,
+        color: '#DA291C',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    backLink: {
+        fontSize: 16,
+        color: '#FFBC0D',
+        fontWeight: '600',
+    },
+    header: {
+        backgroundColor: '#fff',
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
+    },
+    backButton: {
+        marginRight: 16,
+    },
+    backArrow: {
+        fontSize: 24,
+        color: '#292929',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#292929',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    productImage: {
+        width: '100%',
+        height: 300,
+        backgroundColor: '#fff',
+    },
+    infoContainer: {
+        backgroundColor: '#fff',
+        padding: 20,
+        borderBottomWidth: 8,
+        borderBottomColor: '#F5F5F5',
+    },
+    productName: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#292929',
+        marginBottom: 8,
+    },
+    productPrice: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#292929',
+        marginBottom: 12,
+    },
+    productDescription: {
+        fontSize: 14,
+        color: '#666',
+        lineHeight: 20,
+    },
+    section: {
+        backgroundColor: '#fff',
+        padding: 20,
+        marginBottom: 8,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#292929',
+        marginBottom: 16,
+    },
+    obligatoryBadge: {
+        backgroundColor: '#E0E0E0',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    obligatoryText: {
+        fontSize: 12,
+        color: '#666',
+        fontWeight: '600',
+    },
+    sizeContainer: {
+        flexDirection: 'row',
+        gap: 20,
+    },
+    sizeButton: {
+        alignItems: 'center',
+    },
+    sizeCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 3,
+        borderColor: '#E0E0E0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
+        position: 'relative',
+    },
+    sizeCircleActive: {
+        borderColor: '#FFBC0D',
+        backgroundColor: '#FFF8E1',
+    },
+    sizeLetter: {
+        fontSize: 32,
+        fontWeight: 'bold',
+        color: '#666',
+    },
+    sizeLetterActive: {
+        color: '#292929',
+    },
+    checkBadge: {
+        position: 'absolute',
+        top: -5,
+        right: -5,
+        backgroundColor: '#FFBC0D',
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkMark: {
+        color: '#292929',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    sizeName: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#666',
+        marginBottom: 4,
+    },
+    sizeNameActive: {
+        color: '#292929',
+    },
+    sizeExtra: {
+        fontSize: 12,
+        color: '#27AE60',
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    customizeCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    cardIcon: {
+        width: 60,
+        height: 60,
+        marginRight: 16,
+    },
+    cardContent: {
+        flex: 1,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#292929',
+        marginBottom: 4,
+    },
+    cardSubtitle: {
+        fontSize: 14,
+        color: '#666',
+    },
+    arrow: {
+        fontSize: 24,
+        color: '#666',
+        fontWeight: 'bold',
+        paddingLeft: 8,
+    },
+    selectionCard: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    selectionCardSelected: {
+        backgroundColor: '#FFF8E1',
+        marginHorizontal: -20,
+        paddingHorizontal: 20,
+    },
+    cardLeft: {
+        flex: 1,
+    },
+    cardDescription: {
+        fontSize: 14,
+        color: '#999',
+    },
+    cardDescriptionSelected: {
+        color: '#292929',
+        fontWeight: '600',
+    },
+    bottomSpacing: {
+        height: 150,
+    },
+    // --- Estilos del botón inferior ---
+    bottomBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#fff',
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#E0E0E0',
+    },
+    addButton: {
+        backgroundColor: '#292929',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderRadius: 30,
+    },
+    addButtonDisabled: {
+        backgroundColor: '#666',
+    },
+    quantityControlBottom: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+        borderRadius: 20,
+        overflow: 'hidden',
+        marginRight: 16,
+    },
+    quantityButtonBottom: {
+        width: 36,
+        height: 36,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    quantityButtonDisabled: {
+        opacity: 0.4,
+    },
+    quantityButtonTextBottom: {
+        fontSize: 20,
+        color: '#292929',
+        fontWeight: 'bold',
+    },
+    quantityTextBottom: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#292929',
+        paddingHorizontal: 12,
+    },
+    addButtonText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#fff',
+        flex: 1,
+        textAlign: 'left',
+    },
+    addButtonPrice: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#fff',
+        minWidth: 80,
+        textAlign: 'right',
+    },
+    condimentsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    personalizeLink: {
+        fontSize: 14,
+        color: '#DA291C',
+        fontWeight: '600',
+        textDecorationLine: 'underline',
+    },
 });

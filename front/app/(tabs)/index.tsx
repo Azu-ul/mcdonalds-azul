@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import api, { API_URL } from '../../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -12,7 +13,6 @@ import AddressBar from '../components/home/AddressBar';
 import CategoryCarousel from '../components/home/CategoryCarousel';
 import ProductCarousel from '../components/home/ProductCarousel';
 import FlyerCarousel from '../components/home/FlyerCarousel';
-import FloatingCart from '../components/home/FloatingCart';
 
 type Product = {
   id: number;
@@ -21,12 +21,6 @@ type Product = {
   price: number;
   image_url: string;
   category: string;
-};
-
-type CartItem = {
-  product: Product;
-  quantity: number;
-  total: number;
 };
 
 type Flyer = {
@@ -40,27 +34,29 @@ type Flyer = {
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated, updateUser } = useAuth();
+  const { cart, loading: cartLoading } = useCart(); // ✅ Obtenemos el carrito del contexto
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [flyers, setFlyers] = useState<Flyer[]>([]);
   const [isRestaurantPickup, setIsRestaurantPickup] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<{ name: string, address: string } | null>(null);
   const [categories, setCategories] = useState<{ id: number; name: string; icon: string }[]>([]);
 
+  // ✅ Calculamos total de items y precio desde el contexto
+  const totalItems = cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const totalPrice = cart?.total || 0;
 
   useEffect(() => {
     loadProducts();
     loadUserAddress();
-    loadCart();
     loadFlyers();
     loadCategories();
     checkPickupType();
   }, []);
 
-  // Agregar este useEffect para recargar cuando el usuario cambie
   useEffect(() => {
     if (user) {
       loadUserAddress();
@@ -73,7 +69,6 @@ export default function Home() {
       setSelectedCategory(categories[0].name);
     }
   }, [categories]);
-
 
   const loadCategories = async () => {
     try {
@@ -104,13 +99,6 @@ export default function Home() {
       const restaurantName = await AsyncStorage.getItem('restaurant_name');
       const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
 
-      console.log('Check pickup type:', {
-        isRestaurant,
-        restaurantName,
-        restaurantAddress,
-        userAddress: user?.address
-      });
-
       setIsRestaurantPickup(isRestaurant === 'true');
 
       if (isRestaurant === 'true' && restaurantName) {
@@ -128,20 +116,14 @@ export default function Home() {
     }
   };
 
-  // Modificar loadUserAddress para manejar ambos casos
   const loadUserAddress = async () => {
     try {
-      console.log('Cargando dirección, usuario:', user);
-
-      // Primero verificar si hay un restaurante seleccionado
       const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
       const restaurantName = await AsyncStorage.getItem('restaurant_name');
       const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
 
       if (isRestaurant === 'true' && restaurantName) {
-        // Caso: Restaurante seleccionado (Pedí y Retirá)
         const displayAddress = `${restaurantName} - ${restaurantAddress}`;
-        console.log('Restaurante seleccionado:', displayAddress);
         setAddress(displayAddress);
         setIsRestaurantPickup(true);
         setSelectedRestaurant({
@@ -151,33 +133,25 @@ export default function Home() {
         return;
       }
 
-      // Caso: Dirección normal (McDelivery)
-      // Primero intentar cargar del contexto de autenticación
       if (user?.address) {
-        console.log('Dirección del contexto:', user.address);
         setAddress(user.address);
         setIsRestaurantPickup(false);
         setSelectedRestaurant(null);
         return;
       }
 
-      // Si no hay en el contexto, intentar cargar de AsyncStorage
       const savedAddress = await AsyncStorage.getItem('selected_address');
       if (savedAddress && savedAddress !== 'Ingresa tu dirección de entrega') {
-        console.log('Dirección de AsyncStorage:', savedAddress);
         setAddress(savedAddress);
         setIsRestaurantPickup(false);
         setSelectedRestaurant(null);
 
-        // También actualizar el contexto si no hay dirección
         if (!user?.address) {
           await updateUser({ address: savedAddress });
         }
         return;
       }
 
-      // Si no hay nada guardado, mostrar el mensaje por defecto
-      console.log('Sin dirección guardada');
       setAddress('Seleccionar dirección');
       setIsRestaurantPickup(false);
       setSelectedRestaurant(null);
@@ -189,23 +163,10 @@ export default function Home() {
     }
   };
 
-  const loadCart = async () => {
-    try {
-      setCart([]);
-    } catch (error) {
-      console.error('Error loading cart:', error);
-      setCart([]);
-    }
-  };
-
   const loadFlyers = async () => {
     try {
       const res = await api.get('/flyers');
       const fetchedFlyers: Flyer[] = res.data.flyers || [];
-      console.log(
-        'Flyers cargados:',
-        fetchedFlyers.map((f: Flyer) => f.image)
-      );
       setFlyers(fetchedFlyers);
     } catch (error) {
       console.error('Error loading flyers:', error);
@@ -217,17 +178,8 @@ export default function Home() {
     router.push(`/product/${product.id}`);
   };
 
-
   const handleCategoryPress = (categoryName: string) => {
     setSelectedCategory(categoryName);
-  };
-
-  const getTotalCartItems = () => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
-  };
-
-  const getTotalCartPrice = () => {
-    return cart.reduce((sum, item) => sum + item.total, 0);
   };
 
   const getProfileImageUrl = () => {
@@ -240,7 +192,6 @@ export default function Home() {
     return `${API_URL.replace('/api', '')}${url}`;
   };
 
-  // Función para obtener la dirección a mostrar
   const getDisplayAddress = (): string => {
     if (isRestaurantPickup && selectedRestaurant) {
       return `${selectedRestaurant.name} - ${selectedRestaurant.address}`;
@@ -260,9 +211,8 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
-      {/* Contenido Principal */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header con logo y botones de autenticación o foto de perfil */}
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>Mc Donald's Azul</Text>
@@ -276,7 +226,6 @@ export default function Home() {
               >
                 <Text style={styles.loginButtonText}>Ingresar</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={styles.registerButton}
                 onPress={() => router.push('/register')}
@@ -305,21 +254,18 @@ export default function Home() {
           )}
         </View>
 
-        {/* Barra de Dirección - ACTUALIZADA */}
         <AddressBar
           address={getDisplayAddress()}
           onPress={() => router.push('/restaurants')}
           isRestaurant={isRestaurantPickup}
         />
 
-        {/* Carrusel de Categorías */}
         <CategoryCarousel
           categories={categories}
           selectedCategory={selectedCategory}
           onCategoryPress={handleCategoryPress}
         />
 
-        {/* Título de Sección - AHORA DINÁMICO */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{selectedCategory}</Text>
           <TouchableOpacity onPress={() => router.push(`/category/${selectedCategory.toLowerCase().replace(/\s+/g, '-')}`)}>
@@ -327,18 +273,15 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        {/* Carrusel de Productos */}
         <ProductCarousel
           products={filteredProducts}
           onProductPress={handleProductPress}
         />
 
-        {/* Título de Promociones */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Novedades</Text>
         </View>
 
-        {/* Carrusel de Flyers */}
         <FlyerCarousel
           flyers={flyers}
           onFlyerPress={(flyer) => {
@@ -346,18 +289,25 @@ export default function Home() {
           }}
         />
 
-        {/* Espaciado inferior para tabs */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Carrito Flotante */}
-      {cart.length > 0 && (
-        <FloatingCart
-          itemCount={getTotalCartItems()}
-          totalPrice={getTotalCartPrice()}
+      {/* Botón de carrito - mismo estilo que "Agregar" */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={styles.addButton}
           onPress={() => router.push('/cart')}
-        />
-      )}
+        >
+          <Text style={styles.addButtonText}>
+            {totalItems > 0 ? `${totalItems} productos` : 'Carrito vacío'}
+          </Text>
+          <Text style={styles.addButtonPrice}>
+            {totalItems > 0
+              ? `$${totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+              : ''}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -475,5 +425,50 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 100,
+  },
+  cartButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#292929',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  cartText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  addButton: {
+    backgroundColor: '#292929',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    flex: 1,
+    textAlign: 'left',
+  },
+  addButtonPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    minWidth: 80,
+    textAlign: 'right',
   },
 });
