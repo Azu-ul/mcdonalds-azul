@@ -269,7 +269,6 @@ export default function Home() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{selectedCategory}</Text>
           <TouchableOpacity onPress={() => router.push(`/category/${selectedCategory.toLowerCase().replace(/\s+/g, '-')}`)}>
-            <Text style={styles.seeAllText}>Ver todo →</Text>
           </TouchableOpacity>
         </View>
 

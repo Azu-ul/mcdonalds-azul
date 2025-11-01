@@ -15,6 +15,7 @@ import DrinkSelector from './DrinkSelector';
 import CondimentSelector from './CondimentSelector';
 import CustomModal from '../components/CustomModal';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import api, { API_URL } from '../../config/api';
 
 type Ingredient = {
@@ -81,6 +82,7 @@ export default function ProductDetail() {
 
     // Modales
     const [modalType, setModalType] = useState<ModalType>(null);
+    const { refetchCart } = useCart();
 
     const getIngredientsPreview = () => {
         if (!product?.ingredients) return 'Personalizar';
@@ -196,12 +198,9 @@ export default function ProductDetail() {
             return;
         }
 
-        // Validar acompañamiento y bebida SOLO si es combo
-        if (product.is_combo) {
-            if (!selectedSide || !selectedDrink) {
-                alert('Completa todas las selecciones obligatorias del combo');
-                return;
-            }
+        if (product.is_combo && (!selectedSide || !selectedDrink)) {
+            alert('Completa todas las selecciones obligatorias del combo');
+            return;
         }
 
         try {
@@ -213,13 +212,18 @@ export default function ProductDetail() {
             const payload = {
                 product_id: product.id,
                 size_id: selectedSize.id,
-                side_id: product.is_combo ? selectedSide?.id : null,   // ⬅️ Solo si es combo
-                drink_id: product.is_combo ? selectedDrink?.id : null, // ⬅️ Solo si es combo
+                side_id: product.is_combo ? selectedSide?.id : null,
+                drink_id: product.is_combo ? selectedDrink?.id : null,
                 quantity,
                 customizations: JSON.stringify(customizations),
             };
 
             await api.post('/cart/items', payload);
+
+            // ✅ Refrescar el carrito global ANTES de redirigir
+            await refetchCart();
+
+            // ✅ Ahora redirigir
             router.replace('/');
         } catch (error: any) {
             console.error('Error al agregar al carrito:', error);
@@ -282,81 +286,85 @@ export default function ProductDetail() {
                     <Text style={styles.productDescription}>{product.description}</Text>
                 </View>
 
-                {/* Selector de tamaño */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Selecciona un tamaño</Text>
-                    <View style={styles.sizeContainer}>
-                        {product.sizes?.map((size: SizeOption) => (
-                            <TouchableOpacity
-                                key={size.id}
-                                style={styles.sizeButton}
-                                onPress={() => setSelectedSize(size)}
-                            >
-                                <View style={[
-                                    styles.sizeCircle,
-                                    selectedSize?.id === size.id && styles.sizeCircleActive
-                                ]}>
-                                    <Text style={[
-                                        styles.sizeLetter,
-                                        selectedSize?.id === size.id && styles.sizeLetterActive
+                {/* Selector de tamaño — SOLO si es combo */}
+                {product.is_combo && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Selecciona un tamaño</Text>
+                        <View style={styles.sizeContainer}>
+                            {product.sizes?.map((size: SizeOption) => (
+                                <TouchableOpacity
+                                    key={size.id}
+                                    style={styles.sizeButton}
+                                    onPress={() => setSelectedSize(size)}
+                                >
+                                    <View style={[
+                                        styles.sizeCircle,
+                                        selectedSize?.id === size.id && styles.sizeCircleActive
                                     ]}>
-                                        {size.name === 'Mediano' ? 'M' : 'G'}
+                                        <Text style={[
+                                            styles.sizeLetter,
+                                            selectedSize?.id === size.id && styles.sizeLetterActive
+                                        ]}>
+                                            {size.name === 'Mediano' ? 'M' : 'G'}
+                                        </Text>
+                                        {selectedSize?.id === size.id && (
+                                            <View style={styles.checkBadge}>
+                                                <Text style={styles.checkMark}>✓</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text style={[
+                                        styles.sizeName,
+                                        selectedSize?.id === size.id && styles.sizeNameActive
+                                    ]}>
+                                        {size.name}
                                     </Text>
-                                    {selectedSize?.id === size.id && (
-                                        <View style={styles.checkBadge}>
-                                            <Text style={styles.checkMark}>✓</Text>
-                                        </View>
+                                    {size.price_modifier > 0 && (
+                                        <Text style={styles.sizeExtra}>
+                                            Solo por +$ {size.price_modifier.toLocaleString('es-AR')}
+                                        </Text>
                                     )}
-                                </View>
-                                <Text style={[
-                                    styles.sizeName,
-                                    selectedSize?.id === size.id && styles.sizeNameActive
-                                ]}>
-                                    {size.name}
-                                </Text>
-                                {size.price_modifier > 0 && (
-                                    <Text style={styles.sizeExtra}>
-                                        Solo por +$ {size.price_modifier.toLocaleString('es-AR')}
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Completá tu producto */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Completá tu producto</Text>
-                        <View style={styles.obligatoryBadge}>
-                            <Text style={styles.obligatoryText}>Obligatorio</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </View>
+                )}
 
-                    {/* Personalizar hamburguesa (siempre visible si hay ingredientes) */}
-                    {product.ingredients && product.ingredients.length > 0 && (
-                        <View style={styles.section}>
+                {/* === PERSONALIZAR INGREDIENTES (siempre que haya ingredientes) === */}
+                {product.ingredients && product.ingredients.length > 0 && (
+                    <View style={styles.section}>
+                        {/* Si es combo, usamos el título "Completá tu producto" */}
+                        {product.is_combo ? (
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>Completá tu producto</Text>
+                                <View style={styles.obligatoryBadge}>
+                                    <Text style={styles.obligatoryText}>Obligatorio</Text>
+                                </View>
+                            </View>
+                        ) : (
+                            /* Si no es combo, título simple */
                             <Text style={styles.sectionTitle}>Personalizar {product.name}</Text>
-                            <TouchableOpacity
-                                style={styles.customizeCard}
-                                onPress={() => setModalType('ingredients')}
-                            >
-                                <Image
-                                    source={{ uri: getImageUrl(product.image_url) }}
-                                    style={styles.cardIcon}
-                                    resizeMode="contain"
-                                />
-                                <View style={styles.cardContent}>
-                                    <Text style={styles.cardTitle}>{product.name}</Text>
-                                    <Text style={styles.cardSubtitle}>{getIngredientsPreview()}</Text>
-                                </View>
-                                <Text style={styles.arrow}>›</Text>
-                            </TouchableOpacity>
+                        )}
 
-                        </View>
-                    )}
-                </View>
-                {/* Completá tu combo (solo si es combo) */}
+                        <TouchableOpacity
+                            style={styles.customizeCard}
+                            onPress={() => setModalType('ingredients')}
+                        >
+                            <Image
+                                source={{ uri: getImageUrl(product.image_url) }}
+                                style={styles.cardIcon}
+                                resizeMode="contain"
+                            />
+                            <View style={styles.cardContent}>
+                                <Text style={styles.cardTitle}>{product.name}</Text>
+                                <Text style={styles.cardSubtitle}>{getIngredientsPreview()}</Text>
+                            </View>
+                            <Text style={styles.arrow}>›</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* === COMPLETÁ TU COMBO (acompañamiento y bebida) === */}
                 {product.is_combo && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
@@ -412,19 +420,21 @@ export default function ProductDetail() {
                     </View>
                 )}
 
-                {/* Condimentos adicionales */}
-                <TouchableOpacity style={styles.section} onPress={() => setModalType('condiments')}>
-                    <View style={styles.condimentsHeader}>
-                        <Text style={styles.sectionTitle}>Condimentos adicionales</Text>
-                        <TouchableOpacity>
-                            <Text style={styles.personalizeLink}>
-                                {Object.values(condiments).filter(Boolean).length > 0
-                                    ? `${Object.values(condiments).filter(Boolean).length} seleccionados`
-                                    : 'Personalizar'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
+                {/* Condimentos adicionales — solo si es combo */}
+                {product.is_combo && (
+                    <TouchableOpacity style={styles.section} onPress={() => setModalType('condiments')}>
+                        <View style={styles.condimentsHeader}>
+                            <Text style={styles.sectionTitle}>Condimentos adicionales</Text>
+                            <TouchableOpacity>
+                                <Text style={styles.personalizeLink}>
+                                    {Object.values(condiments).filter(Boolean).length > 0
+                                        ? `${Object.values(condiments).filter(Boolean).length} seleccionados`
+                                        : 'Personalizar'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                )}      
 
                 <View style={styles.bottomSpacing} />
             </ScrollView>
