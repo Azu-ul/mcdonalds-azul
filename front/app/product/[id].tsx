@@ -76,9 +76,20 @@ export default function ProductDetail() {
     const [selectedDrink, setSelectedDrink] = useState<DrinkOption | null>(null);
     const [ingredients, setIngredients] = useState<Record<number, number>>({});
     const [condiments, setCondiments] = useState<Record<number, boolean>>({});
+    const [quantity, setQuantity] = useState(1);
 
     // Modales
     const [modalType, setModalType] = useState<ModalType>(null);
+
+    const getIngredientsPreview = () => {
+        if (!product?.ingredients) return 'Personalizar';
+
+        const selectedCount = Object.values(ingredients).filter(qty => qty > 0).length;
+
+        if (selectedCount === 0) return 'Personalizar';
+
+        return `${selectedCount} ingredientes seleccionados`;
+    };
 
     useEffect(() => {
         if (!id) {
@@ -91,6 +102,7 @@ export default function ProductDetail() {
             try {
                 const res = await api.get(`/home/products/${id}`);
                 const productData = res.data.product;
+                console.log('Producto cargado:', productData);
                 setProduct(productData);
 
                 // Seleccionar tamaño por defecto (Mediano)
@@ -142,18 +154,29 @@ export default function ProductDetail() {
         // Agregar extras de ingredientes
         if (product.ingredients) {
             product.ingredients.forEach((ing: Ingredient) => {
-                const quantity = ingredients[ing.id] || 0;
-                if (quantity > 1) {
-                    total += ing.extra_price * (quantity - 1);
+                const qty = ingredients[ing.id] || 0;
+                if (qty > 1) {
+                    total += ing.extra_price * (qty - 1);
                 }
             });
         }
 
-        return total;
+        return total * quantity;
     };
 
     const isFormValid = () => {
-        return !!selectedSize && !!selectedSide && !!selectedDrink;
+        if (!selectedSize || !selectedSide || !selectedDrink) return false;
+
+        // Verificar que todos los ingredientes requeridos estén seleccionados
+        if (product?.ingredients) {
+            for (const ing of product.ingredients) {
+                if (ing.is_required && (!ingredients[ing.id] || ingredients[ing.id] === 0)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     };
 
     const handleAddToCart = () => {
@@ -168,7 +191,7 @@ export default function ProductDetail() {
             side: selectedSide,
             drink: selectedDrink,
             ingredients,
-            condiments,
+            quantity,
             total: calculateTotalPrice()
         });
 
@@ -201,10 +224,6 @@ export default function ProductDetail() {
     }
 
     const totalPrice = calculateTotalPrice();
-    const obligatorySelections = [
-        selectedSide !== null,
-        selectedDrink !== null
-    ].filter(Boolean).length;
 
     return (
         <View style={styles.container}>
@@ -240,19 +259,32 @@ export default function ProductDetail() {
                         {product.sizes?.map((size: SizeOption) => (
                             <TouchableOpacity
                                 key={size.id}
-                                style={[
-                                    styles.sizeButton,
-                                    selectedSize?.id === size.id && styles.sizeButtonActive
-                                ]}
+                                style={styles.sizeButton}
                                 onPress={() => setSelectedSize(size)}
                             >
-                                <View style={styles.sizeCircle}>
-                                    <Text style={styles.sizeLetter}>
+                                <View style={[
+                                    styles.sizeCircle,
+                                    selectedSize?.id === size.id && styles.sizeCircleActive
+                                ]}>
+                                    <Text style={[
+                                        styles.sizeLetter,
+                                        selectedSize?.id === size.id && styles.sizeLetterActive
+                                    ]}>
                                         {size.name === 'Mediano' ? 'M' : 'G'}
                                     </Text>
+                                    {selectedSize?.id === size.id && (
+                                        <View style={styles.checkBadge}>
+                                            <Text style={styles.checkMark}>✓</Text>
+                                        </View>
+                                    )}
                                 </View>
-                                <Text style={styles.sizeName}>{size.name}</Text>
-                                {size.price_modifier > 0 && selectedSize?.id !== size.id && (
+                                <Text style={[
+                                    styles.sizeName,
+                                    selectedSize?.id === size.id && styles.sizeNameActive
+                                ]}>
+                                    {size.name}
+                                </Text>
+                                {size.price_modifier > 0 && (
                                     <Text style={styles.sizeExtra}>
                                         Solo por +$ {size.price_modifier.toLocaleString('es-AR')}
                                     </Text>
@@ -284,78 +316,130 @@ export default function ProductDetail() {
                             />
                             <View style={styles.cardContent}>
                                 <Text style={styles.cardTitle}>{product.name}</Text>
-                                <Text style={styles.cardSubtitle}>Personalizar</Text>
+                                <Text style={styles.cardSubtitle}>{getIngredientsPreview()}</Text>
                             </View>
+                            <Text style={styles.arrow}>›</Text>
                         </TouchableOpacity>
                     )}
 
                     {/* Acompañamiento */}
                     <TouchableOpacity
-                        style={styles.selectionCard}
+                        style={[
+                            styles.selectionCard,
+                            selectedSide && styles.selectionCardSelected
+                        ]}
                         onPress={() => setModalType('sides')}
                     >
                         <View style={styles.cardLeft}>
                             <Text style={styles.cardTitle}>Acompañamiento</Text>
-                            <Text style={styles.cardDescription}>
+                            <Text style={[
+                                styles.cardDescription,
+                                selectedSide && styles.cardDescriptionSelected
+                            ]}>
                                 {selectedSide
                                     ? selectedSide.name
                                     : 'Elegí una opción (obligatorio)'}
                             </Text>
                         </View>
-                        <View style={styles.selectButton}>
-                            <Text style={styles.selectButtonText}>Seleccionar</Text>
-                        </View>
+                        <Text style={styles.arrow}>›</Text>
                     </TouchableOpacity>
 
                     {/* Bebida */}
                     <TouchableOpacity
-                        style={styles.selectionCard}
+                        style={[
+                            styles.selectionCard,
+                            selectedDrink && styles.selectionCardSelected
+                        ]}
                         onPress={() => setModalType('drinks')}
                     >
                         <View style={styles.cardLeft}>
                             <Text style={styles.cardTitle}>Bebida</Text>
-                            <Text style={styles.cardDescription}>
+                            <Text style={[
+                                styles.cardDescription,
+                                selectedDrink && styles.cardDescriptionSelected
+                            ]}>
                                 {selectedDrink
                                     ? selectedDrink.name
                                     : 'Elegí una opción (obligatorio)'}
                             </Text>
                         </View>
-                        <View style={styles.selectButton}>
-                            <Text style={styles.selectButtonText}>Seleccionar</Text>
-                        </View>
+                        <Text style={styles.arrow}>›</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Condimentos adicionales */}
-                <View style={styles.section}>
-                    <TouchableOpacity onPress={() => setModalType('condiments')}>
+                <TouchableOpacity style={styles.section} onPress={() => setModalType('condiments')}>
+                    <View style={styles.condimentsHeader}>
                         <Text style={styles.sectionTitle}>Condimentos adicionales</Text>
-                        <Text style={styles.personalizeLink}>Personalizar</Text>
-                    </TouchableOpacity>
-                </View>
+                        <TouchableOpacity>
+                            <Text style={styles.personalizeLink}>
+                                {Object.values(condiments).filter(Boolean).length > 0
+                                    ? `${Object.values(condiments).filter(Boolean).length} seleccionados`
+                                    : 'Personalizar'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
 
                 <View style={styles.bottomSpacing} />
             </ScrollView>
 
-            {/* Botón flotante inferior */}
-            {isFormValid() && (
-                <View style={styles.bottomBar}>
+            {/* Botón flotante inferior - SIEMPRE visible, con contador y estilo original */}
+            <View style={styles.bottomBar}>
+                <TouchableOpacity
+                    style={[
+                        styles.addButton,
+                        !isFormValid() && styles.addButtonDisabled
+                    ]}
+                    onPress={isFormValid() ? handleAddToCart : undefined}
+                    disabled={!isFormValid()}
+                >
+                    <View style={styles.quantityControlBottom}>
                     <TouchableOpacity
-                        style={styles.addButton}
-                        onPress={handleAddToCart}
+                        disabled={quantity <= 1}
+                        onPress={() => setQuantity(q => Math.max(1, q - 1))}
+                        style={[styles.quantityButtonBottom, quantity <= 1 && styles.quantityButtonDisabled]}
                     >
-                        <Text style={styles.addButtonText}>
-                            {obligatorySelections} selecciones obligatorias
-                        </Text>
-                        <Text style={styles.addButtonPrice}>
-                            $ {totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </Text>
+                        <Text style={styles.quantityButtonTextBottom}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.quantityTextBottom}>{quantity}</Text>
+                    <TouchableOpacity
+                        disabled={quantity >= 5}
+                        onPress={() => setQuantity(q => Math.min(5, q + 1))}
+                        style={[styles.quantityButtonBottom, quantity >= 5 && styles.quantityButtonDisabled]}
+                    >
+                        <Text style={styles.quantityButtonTextBottom}>+</Text>
                     </TouchableOpacity>
                 </View>
-            )}
+                    {!isFormValid() ? (
+                        <Text style={styles.addButtonText}>
+                            {3 - (selectedSize ? 1 : 0) - (selectedSide ? 1 : 0) - (selectedDrink ? 1 : 0)}{' '}
+                            selecciones obligatorias
+                        </Text>
+                    ) : (
+                        <Text style={styles.addButtonText}>Agregar</Text>
+                    )}
+                    <Text style={styles.addButtonPrice}>
+                        $ {totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </Text>
+                </TouchableOpacity>
+            </View>
 
             {/* Modales */}
             <CustomModal visible={!!modalType}>
+                {modalType === 'condiments' && (
+                    <CondimentSelector
+                        condiments={[
+                            { id: 1, name: 'Ketchup' },
+                            { id: 2, name: 'Mostaza' },
+                            { id: 3, name: 'Mayonesa' },
+                            { id: 4, name: 'Salsa BBQ' },
+                        ]}
+                        selected={condiments}
+                        onChange={setCondiments}
+                        onClose={() => setModalType(null)}
+                    />
+                )}
                 {modalType === 'ingredients' && product.ingredients && (
                     <IngredientSelector
                         ingredients={product.ingredients}
@@ -386,256 +470,317 @@ export default function ProductDetail() {
                         onClose={() => setModalType(null)}
                     />
                 )}
-                {modalType === 'condiments' && (
-                    <CondimentSelector
-                        condiments={[
-                            { id: 1, name: 'Ketchup' },
-                            { id: 2, name: 'Mostaza' },
-                            { id: 3, name: 'Mayonesa' }
-                        ]}
-                        selected={condiments}
-                        onChange={setCondiments}
-                        onClose={() => setModalType(null)}
-                    />
-                )}
+
+
             </CustomModal>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F5F5F5',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F5F5F5',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F5F5F5',
-        padding: 20,
-    },
-    errorText: {
-        fontSize: 16,
-        color: '#DA291C',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-    backLink: {
-        fontSize: 16,
-        color: '#FFBC0D',
-        fontWeight: '600',
-    },
-    header: {
-        backgroundColor: '#fff',
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
-    },
-    backButton: {
-        marginRight: 16,
-    },
-    backArrow: {
-        fontSize: 24,
-        color: '#292929',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#292929',
-    },
-    scrollView: {
-        flex: 1,
-    },
-    productImage: {
-        width: '100%',
-        height: 300,
-        backgroundColor: '#fff',
-    },
-    infoContainer: {
-        backgroundColor: '#fff',
-        padding: 20,
-        borderBottomWidth: 8,
-        borderBottomColor: '#F5F5F5',
-    },
-    productName: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#292929',
-        marginBottom: 8,
-    },
-    productPrice: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#292929',
-        marginBottom: 12,
-    },
-    productDescription: {
-        fontSize: 14,
-        color: '#666',
-        lineHeight: 20,
-    },
-    section: {
-        backgroundColor: '#fff',
-        padding: 20,
-        marginBottom: 8,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#292929',
-        marginBottom: 16,
-    },
-    obligatoryBadge: {
-        backgroundColor: '#E0E0E0',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-    },
-    obligatoryText: {
-        fontSize: 12,
-        color: '#666',
-        fontWeight: '600',
-    },
-    sizeContainer: {
-        flexDirection: 'row',
-        gap: 20,
-    },
-    sizeButton: {
-        alignItems: 'center',
-    },
-    sizeCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 3,
-        borderColor: '#E0E0E0',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    sizeButtonActive: {},
-    sizeLetter: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#292929',
-    },
-    sizeName: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#292929',
-        marginBottom: 4,
-    },
-    sizeExtra: {
-        fontSize: 12,
-        color: '#27AE60',
-        backgroundColor: '#E8F5E9',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
-    },
-    customizeCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-    },
-    cardIcon: {
-        width: 60,
-        height: 60,
-        marginRight: 16,
-    },
-    cardContent: {
-        flex: 1,
-    },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#292929',
-        marginBottom: 4,
-    },
-    cardSubtitle: {
-        fontSize: 14,
-        color: '#666',
-        textDecorationLine: 'underline',
-    },
-    selectionCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-    },
-    cardLeft: {
-        flex: 1,
-    },
-    cardDescription: {
-        fontSize: 14,
-        color: '#999',
-    },
-    selectButton: {
-        backgroundColor: '#FFBC0D',
-        paddingHorizontal: 20,
-        paddingVertical: 8,
-        borderRadius: 8,
-    },
-    selectButtonText: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#292929',
-    },
-    personalizeLink: {
-        fontSize: 14,
-        color: '#666',
-        textDecorationLine: 'underline',
-    },
-    bottomSpacing: {
-        height: 100,
-    },
-    bottomBar: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: '#fff',
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#E0E0E0',
-    },
-    addButton: {
-        backgroundColor: '#292929',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 24,
-        borderRadius: 30,
-    },
-    addButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    addButtonPrice: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#DA291C',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  backLink: {
+    fontSize: 16,
+    color: '#FFBC0D',
+    fontWeight: '600',
+  },
+  header: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  backButton: {
+    marginRight: 16,
+  },
+  backArrow: {
+    fontSize: 24,
+    color: '#292929',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  productImage: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#fff',
+  },
+  infoContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderBottomWidth: 8,
+    borderBottomColor: '#F5F5F5',
+  },
+  productName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#292929',
+    marginBottom: 8,
+  },
+  productPrice: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#292929',
+    marginBottom: 12,
+  },
+  productDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  section: {
+    backgroundColor: '#fff',
+    padding: 20,
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#292929',
+    marginBottom: 16,
+  },
+  obligatoryBadge: {
+    backgroundColor: '#E0E0E0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  obligatoryText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+  },
+  sizeContainer: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  sizeButton: {
+    alignItems: 'center',
+  },
+  sizeCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    position: 'relative',
+  },
+  sizeCircleActive: {
+    borderColor: '#FFBC0D',
+    backgroundColor: '#FFF8E1',
+  },
+  sizeLetter: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  sizeLetterActive: {
+    color: '#292929',
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#FFBC0D',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkMark: {
+    color: '#292929',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  sizeName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 4,
+  },
+  sizeNameActive: {
+    color: '#292929',
+  },
+  sizeExtra: {
+    fontSize: 12,
+    color: '#27AE60',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  customizeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  cardIcon: {
+    width: 60,
+    height: 60,
+    marginRight: 16,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#292929',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
+  arrow: {
+    fontSize: 24,
+    color: '#666',
+    fontWeight: 'bold',
+    paddingLeft: 8,
+  },
+  selectionCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  selectionCardSelected: {
+    backgroundColor: '#FFF8E1',
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+  },
+  cardLeft: {
+    flex: 1,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#999',
+  },
+  cardDescriptionSelected: {
+    color: '#292929',
+    fontWeight: '600',
+  },
+  bottomSpacing: {
+    height: 150,
+  },
+  // --- Estilos del botón inferior ---
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  addButton: {
+    backgroundColor: '#292929',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+  },
+  addButtonDisabled: {
+    backgroundColor: '#666',
+  },
+  quantityControlBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 16,
+  },
+  quantityButtonBottom: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityButtonDisabled: {
+    opacity: 0.4,
+  },
+  quantityButtonTextBottom: {
+    fontSize: 20,
+    color: '#292929',
+    fontWeight: 'bold',
+  },
+  quantityTextBottom: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#292929',
+    paddingHorizontal: 12,
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    flex: 1,
+    textAlign: 'left',
+  },
+  addButtonPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    minWidth: 80,
+    textAlign: 'right',
+  },
+  condimentsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  personalizeLink: {
+    fontSize: 14,
+    color: '#DA291C',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 });
