@@ -10,14 +10,14 @@ import {
     Dimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import IngredientSelector from '../components/product/IngredientSelector';
-import SideSelector from '../components/product/SideSelector';
-import DrinkSelector from '../components/product/DrinkSelector';
-import CondimentSelector from '../components/product/CondimentSelector';
-import AddToCartButton from '../components/product/AddToCartButton';
-import CustomModal from '../components/CustomModal';
-import { useAuth } from '../context/AuthContext';
-import api from '../../config/api';
+import IngredientSelector from './IngredientSelector';
+import SideSelector from './SideSelector';
+import DrinkSelector from './DrinkSelector';
+import CondimentSelector from './CondimentSelector';
+import AddToCartButton from './AddToCartButton';
+import CustomModal from '../CustomModal';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../../config/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -102,6 +102,8 @@ const ProductDetailScreen = () => {
                 const res = await api.get(`/products/${id}`);
                 setProduct(res.data);
             } catch (err: any) {
+                console.log('id recibido:', id);
+
                 setError('No se pudo cargar el producto');
                 console.error(err);
             } finally {

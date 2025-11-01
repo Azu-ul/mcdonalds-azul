@@ -50,6 +50,7 @@ export default function Home() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<{ name: string, address: string } | null>(null);
   const [categories, setCategories] = useState<{ id: number; name: string; icon: string }[]>([]);
 
+
   useEffect(() => {
     loadProducts();
     loadUserAddress();
@@ -59,6 +60,7 @@ export default function Home() {
     checkPickupType();
   }, []);
 
+  // Agregar este useEffect para recargar cuando el usuario cambie
   useEffect(() => {
     if (user) {
       loadUserAddress();
@@ -71,6 +73,7 @@ export default function Home() {
       setSelectedCategory(categories[0].name);
     }
   }, [categories]);
+
 
   const loadCategories = async () => {
     try {
@@ -101,6 +104,13 @@ export default function Home() {
       const restaurantName = await AsyncStorage.getItem('restaurant_name');
       const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
 
+      console.log('Check pickup type:', {
+        isRestaurant,
+        restaurantName,
+        restaurantAddress,
+        userAddress: user?.address
+      });
+
       setIsRestaurantPickup(isRestaurant === 'true');
 
       if (isRestaurant === 'true' && restaurantName) {
@@ -118,14 +128,20 @@ export default function Home() {
     }
   };
 
+  // Modificar loadUserAddress para manejar ambos casos
   const loadUserAddress = async () => {
     try {
+      console.log('Cargando dirección, usuario:', user);
+
+      // Primero verificar si hay un restaurante seleccionado
       const isRestaurant = await AsyncStorage.getItem('is_restaurant_pickup');
       const restaurantName = await AsyncStorage.getItem('restaurant_name');
       const restaurantAddress = await AsyncStorage.getItem('restaurant_address');
 
       if (isRestaurant === 'true' && restaurantName) {
+        // Caso: Restaurante seleccionado (Pedí y Retirá)
         const displayAddress = `${restaurantName} - ${restaurantAddress}`;
+        console.log('Restaurante seleccionado:', displayAddress);
         setAddress(displayAddress);
         setIsRestaurantPickup(true);
         setSelectedRestaurant({
@@ -135,25 +151,33 @@ export default function Home() {
         return;
       }
 
+      // Caso: Dirección normal (McDelivery)
+      // Primero intentar cargar del contexto de autenticación
       if (user?.address) {
+        console.log('Dirección del contexto:', user.address);
         setAddress(user.address);
         setIsRestaurantPickup(false);
         setSelectedRestaurant(null);
         return;
       }
 
+      // Si no hay en el contexto, intentar cargar de AsyncStorage
       const savedAddress = await AsyncStorage.getItem('selected_address');
       if (savedAddress && savedAddress !== 'Ingresa tu dirección de entrega') {
+        console.log('Dirección de AsyncStorage:', savedAddress);
         setAddress(savedAddress);
         setIsRestaurantPickup(false);
         setSelectedRestaurant(null);
 
+        // También actualizar el contexto si no hay dirección
         if (!user?.address) {
           await updateUser({ address: savedAddress });
         }
         return;
       }
 
+      // Si no hay nada guardado, mostrar el mensaje por defecto
+      console.log('Sin dirección guardada');
       setAddress('Seleccionar dirección');
       setIsRestaurantPickup(false);
       setSelectedRestaurant(null);
@@ -178,6 +202,10 @@ export default function Home() {
     try {
       const res = await api.get('/flyers');
       const fetchedFlyers: Flyer[] = res.data.flyers || [];
+      console.log(
+        'Flyers cargados:',
+        fetchedFlyers.map((f: Flyer) => f.image)
+      );
       setFlyers(fetchedFlyers);
     } catch (error) {
       console.error('Error loading flyers:', error);
@@ -185,13 +213,10 @@ export default function Home() {
     }
   };
 
-  // ✅ FUNCIÓN ACTUALIZADA - Navega a la pantalla de detalle
   const handleProductPress = (product: Product) => {
-    router.push({
-      pathname: '/(tabs)/ProductDetailScreen',
-      params: { id: product.id.toString() }
-    });
+    router.push(`/product/${product.id}`);
   };
+
 
   const handleCategoryPress = (categoryName: string) => {
     setSelectedCategory(categoryName);
@@ -215,6 +240,7 @@ export default function Home() {
     return `${API_URL.replace('/api', '')}${url}`;
   };
 
+  // Función para obtener la dirección a mostrar
   const getDisplayAddress = (): string => {
     if (isRestaurantPickup && selectedRestaurant) {
       return `${selectedRestaurant.name} - ${selectedRestaurant.address}`;
@@ -234,8 +260,9 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
+      {/* Contenido Principal */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
+        {/* Header con logo y botones de autenticación o foto de perfil */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>Mc Donald's Azul</Text>
@@ -278,7 +305,7 @@ export default function Home() {
           )}
         </View>
 
-        {/* Barra de Dirección */}
+        {/* Barra de Dirección - ACTUALIZADA */}
         <AddressBar
           address={getDisplayAddress()}
           onPress={() => router.push('/restaurants')}
@@ -292,7 +319,7 @@ export default function Home() {
           onCategoryPress={handleCategoryPress}
         />
 
-        {/* Título de Sección */}
+        {/* Título de Sección - AHORA DINÁMICO */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{selectedCategory}</Text>
           <TouchableOpacity onPress={() => router.push(`/category/${selectedCategory.toLowerCase().replace(/\s+/g, '-')}`)}>
@@ -300,7 +327,7 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        {/* Carrusel de Productos - Ahora navega al detalle */}
+        {/* Carrusel de Productos */}
         <ProductCarousel
           products={filteredProducts}
           onProductPress={handleProductPress}
@@ -319,6 +346,7 @@ export default function Home() {
           }}
         />
 
+        {/* Espaciado inferior para tabs */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
 

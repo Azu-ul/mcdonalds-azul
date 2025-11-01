@@ -1,3 +1,4 @@
+// front/app/components/home/ProductCarousel.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet } from 'react-native';
 import { API_URL } from '../../../config/api';
@@ -18,11 +19,10 @@ type ProductCarouselProps = {
 
 export default function ProductCarousel({ products, onProductPress }: ProductCarouselProps) {
   const getImageUrl = (imageUrl?: string | null) => {
-    if (!imageUrl) return ''; // o un placeholder
+    if (!imageUrl) return '';
     if (imageUrl.startsWith('http')) return imageUrl;
     return `${API_URL.replace('/api', '')}${imageUrl}`;
   };
-
 
   const formatPrice = (price: number) => {
     return `$ ${price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -43,35 +43,42 @@ export default function ProductCarousel({ products, onProductPress }: ProductCar
       contentContainerStyle={styles.scrollContent}
     >
       {products.map((product) => (
-        <TouchableOpacity
-          key={product.id}
-          style={styles.productCard}
-          onPress={() => onProductPress(product)}
-        >
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: getImageUrl(product.image_url) }}
-              style={styles.productImage}
-              resizeMode="cover"
-            />
-          </View>
-
-          <View style={styles.productInfo}>
-            <Text style={styles.productName} numberOfLines={2}>
-              {product.name}
-            </Text>
-            <Text style={styles.productDescription} numberOfLines={2}>
-              {product.description}
-            </Text>
-            <View style={styles.priceContainer}>
-              <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
+        <View key={product.id} style={styles.productCard}>
+          {/* Toda la card es clickeable */}
+          <TouchableOpacity 
+            style={styles.cardContent}
+            onPress={() => onProductPress(product)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imageContainer}>
+              <Image
+                source={{ uri: getImageUrl(product.image_url) }}
+                style={styles.productImage}
+                resizeMode="cover"
+              />
             </View>
-          </View>
 
-          <TouchableOpacity style={styles.addButton}>
+            <View style={styles.productInfo}>
+              <Text style={styles.productName} numberOfLines={2}>
+                {product.name}
+              </Text>
+              <Text style={styles.productDescription} numberOfLines={2}>
+                {product.description}
+              </Text>
+              <View style={styles.priceContainer}>
+                <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* Botón agregar - también navega al detalle */}
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => onProductPress(product)}
+          >
             <Text style={styles.addButtonText}>+ Agregar</Text>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
       ))}
     </ScrollView>
   );
@@ -94,6 +101,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     flexDirection: 'column',
+    flex: 1,
+  },
+  cardContent: {
     flex: 1,
   },
   imageContainer: {

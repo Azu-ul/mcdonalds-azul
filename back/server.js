@@ -14,6 +14,7 @@ import couponsRoutes from './routes/coupons.js';
 import restaurantsRoutes from './routes/restaurants.js';
 import addressesRoutes from './routes/addresses.js';
 import categoriesRoutes from './routes/categories.js';
+import cartRoutes from './routes/cart.js';
 
 import './config/passport.js';
 
@@ -45,6 +46,7 @@ app.use('/api/coupons', couponsRoutes);
 app.use('/api/restaurants', restaurantsRoutes);
 app.use('/api/user', addressesRoutes);
 app.use('/api/categories', categoriesRoutes);
+app.use('/api/cart', cartRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
