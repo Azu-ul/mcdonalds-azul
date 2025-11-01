@@ -1,9 +1,9 @@
 // src/components/product/AddToCartButton.tsx
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import CustomModal from '../CustomModal';
-import { useAuth } from '../../context/AuthContext';
-import api from '../../../config/api';
+import CustomModal from '../components/CustomModal';
+import { useAuth } from '../context/AuthContext';
+import api from '../../config/api';
 
 type Props = {
   price: number;

@@ -15,9 +15,9 @@ import SideSelector from './SideSelector';
 import DrinkSelector from './DrinkSelector';
 import CondimentSelector from './CondimentSelector';
 import AddToCartButton from './AddToCartButton';
-import CustomModal from '../CustomModal';
-import { useAuth } from '../../context/AuthContext';
-import api from '../../../config/api';
+import CustomModal from '../components/CustomModal';
+import { useAuth } from '../context/AuthContext';
+import api from '../../config/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -99,13 +99,16 @@ const ProductDetailScreen = () => {
 
         const fetchProduct = async () => {
             try {
-                const res = await api.get(`/products/${id}`);
-                setProduct(res.data);
-            } catch (err: any) {
-                console.log('id recibido:', id);
+                console.log('📦 Cargando producto ID:', id);
+                const res = await api.get(`/home/products/${id}`);
+                console.log('✅ Producto cargado:', res.data.product);
 
+                // La respuesta viene en res.data.product
+                setProduct(res.data.product);
+            } catch (err: any) {
+                console.error('❌ Error al cargar producto:', err);
+                console.log('ID recibido:', id);
                 setError('No se pudo cargar el producto');
-                console.error(err);
             } finally {
                 setLoading(false);
             }
