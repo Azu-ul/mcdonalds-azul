@@ -451,4 +451,149 @@ router.get('/orders', authenticateToken, async (req, res) => {
   }
 });
 
+router.get('/roles', authenticateToken, async (req, res) => {
+  try {
+    const [userRoles] = await pool.query(
+      `SELECT r.name 
+       FROM user_roles ur
+       INNER JOIN roles r ON ur.role_id = r.id
+       WHERE ur.user_id = ?`,
+      [req.user.id]
+    );
+
+    const roles = userRoles.map(r => r.name);
+
+    // Si no tiene roles asignados, asignar 'seguidor' por defecto
+    if (roles.length === 0) {
+      const [roleResult] = await pool.query(
+        'SELECT id FROM roles WHERE name = "seguidor"'
+      );
+
+      if (roleResult.length > 0) {
+        await pool.query(
+          'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
+          [req.user.id, roleResult[0].id]
+        );
+        roles.push('seguidor');
+      }
+    }
+
+    res.json({ roles });
+  } catch (err) {
+    console.error('Error al obtener roles:', err);
+    res.status(500).json({ error: 'Error al obtener roles' });
+  }
+});
+
+/**
+ * @route   POST /api/profile/roles
+ * @desc    Asignar rol (solo admin)
+ * @access  Private
+ */
+router.post('/roles', authenticateToken, async (req, res) => {
+  try {
+    // Verificar si el usuario autenticado es admin
+    const [userRoles] = await pool.query(
+      `SELECT r.name 
+       FROM user_roles ur
+       INNER JOIN roles r ON ur.role_id = r.id
+       WHERE ur.user_id = ?`,
+      [req.user.id]
+    );
+
+    const isAdmin = userRoles.some(r => r.name === 'admin');
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'No tienes permisos para asignar roles' });
+    }
+
+    const { user_id, role_name } = req.body;
+
+    if (!user_id || !role_name) {
+      return res.status(400).json({ error: 'user_id y role_name son requeridos' });
+    }
+
+    // Obtener ID del rol
+    const [roles] = await pool.query(
+      'SELECT id FROM roles WHERE name = ?',
+      [role_name]
+    );
+
+    if (roles.length === 0) {
+      return res.status(404).json({ error: 'Rol no encontrado' });
+    }
+
+    // Verificar si ya tiene ese rol
+    const [existing] = await pool.query(
+      'SELECT id FROM user_roles WHERE user_id = ? AND role_id = ?',
+      [user_id, roles[0].id]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'El usuario ya tiene este rol' });
+    }
+
+    // Asignar rol
+    await pool.query(
+      'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
+      [user_id, roles[0].id]
+    );
+
+    res.json({ message: 'Rol asignado exitosamente' });
+  } catch (err) {
+    console.error('Error al asignar rol:', err);
+    res.status(500).json({ error: 'Error al asignar rol' });
+  }
+});
+
+/**
+ * @route   DELETE /api/profile/roles/:role_name
+ * @desc    Quitar rol (solo admin)
+ * @access  Private
+ */
+router.delete('/roles/:role_name', authenticateToken, async (req, res) => {
+  try {
+    // Verificar si el usuario autenticado es admin
+    const [userRoles] = await pool.query(
+      `SELECT r.name 
+       FROM user_roles ur
+       INNER JOIN roles r ON ur.role_id = r.id
+       WHERE ur.user_id = ?`,
+      [req.user.id]
+    );
+
+    const isAdmin = userRoles.some(r => r.name === 'admin');
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'No tienes permisos para quitar roles' });
+    }
+
+    const { role_name } = req.params;
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id es requerido' });
+    }
+
+    // Obtener ID del rol
+    const [roles] = await pool.query(
+      'SELECT id FROM roles WHERE name = ?',
+      [role_name]
+    );
+
+    if (roles.length === 0) {
+      return res.status(404).json({ error: 'Rol no encontrado' });
+    }
+
+    // Eliminar rol
+    await pool.query(
+      'DELETE FROM user_roles WHERE user_id = ? AND role_id = ?',
+      [user_id, roles[0].id]
+    );
+
+    res.json({ message: 'Rol eliminado exitosamente' });
+  } catch (err) {
+    console.error('Error al quitar rol:', err);
+    res.status(500).json({ error: 'Error al quitar rol' });
+  }
+});
+
 export default router;

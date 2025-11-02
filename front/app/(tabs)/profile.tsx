@@ -230,43 +230,147 @@ export default function Profile() {
     }
   };
 
-  const uploadProfileImageFile = async (file: File | { uri: string; name: string; type: string }) => {
+  // Tipos compatibles
+  type PlatformFile = File | { uri: string; name: string; type: string };
+
+  const uploadFile = async (
+    file: PlatformFile,
+    fieldName: 'image' | 'document',
+    endpoint: string
+  ): Promise<string> => {
+    const formData = new FormData();
+
+    if ('uri' in file) {
+      // 📱 React Native
+      const uri = Platform.OS === 'ios' && !file.uri.startsWith('file://')
+        ? `file://${file.uri}`
+        : file.uri;
+      formData.append(fieldName, {
+        uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+    } else {
+      // 🌐 Web - el file ya es un objeto File de JavaScript
+      console.log('📤 Subiendo archivo web:', file.name, file.type, file.size);
+      formData.append(fieldName, file, file.name);
+    }
+
+    const token = await AsyncStorage.getItem('token');
+
+    console.log('🔑 Token:', token ? 'presente' : 'ausente');
+    console.log('📍 Endpoint:', `${API_URL}${endpoint}`);
+    console.log('📦 Field name:', fieldName);
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // NO incluir Content-Type - fetch lo maneja automáticamente
+      },
+      body: formData,
+    });
+
+    console.log('📡 Response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Error response:', errorData);
+      throw new Error(errorData.error || `Error al subir ${fieldName}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Success response:', data);
+    return fieldName === 'image'
+      ? data.profile_image_url
+      : data.document_image_url;
+  };
+
+  // Foto de perfil - CAMBIAR ENDPOINT
+  const uploadProfileImageFile = async (file: PlatformFile) => {
     try {
       updateLoadingState('profileImage', true);
-      const formData = new FormData();
+      const imageUrl = await uploadFile(file, 'image', '/profile/image'); // CAMBIO AQUÍ
 
-      if ('uri' in file) {
-        formData.append('image', {
-          uri: Platform.OS === 'ios' && !file.uri.startsWith('file://') ? `file://${file.uri}` : file.uri,
-          name: file.name,
-          type: file.type,
-        } as any);
-      } else {
-        formData.append('image', file);
-      }
-
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/profile/image`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error((await response.json()).error || 'Error al subir imagen');
-
-      const data = await response.json();
-      const updatedUser = { ...user, profile_image_url: data.profile_image_url };
+      const updatedUser = { ...user, profile_image_url: imageUrl };
       setUser(updatedUser as User);
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-      await updateUser({ profile_image_url: data.profile_image_url });
+      await updateUser({ profile_image_url: imageUrl });
       Alert.alert('Éxito', 'Foto actualizada');
     } catch (err: any) {
+      console.error('Upload error:', err);
       Alert.alert('Error', err.message || 'No se pudo subir la imagen');
     } finally {
       updateLoadingState('profileImage', false);
     }
   };
 
+  // Documento - CAMBIAR ENDPOINT
+  const uploadDocumentFile = async (file: PlatformFile) => {
+    try {
+      updateLoadingState('document', true);
+      const docUrl = await uploadFile(file, 'document', '/profile/document'); // CAMBIO AQUÍ
+
+      const updatedUser = { ...user, document_image_url: docUrl };
+      setUser(updatedUser as User);
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      Alert.alert('Éxito', 'Documento subido');
+    } catch (err: any) {
+      console.error('Document upload error:', err);
+      Alert.alert('Error', err.message || 'No se pudo subir el documento');
+    } finally {
+      updateLoadingState('document', false);
+    }
+  };
+
+  // Reemplazar la función pickDocument completa
+  const pickDocument = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      console.log('📄 Document picker result:', result);
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const uri = asset.uri;
+
+        // En web, expo-image-picker puede devolver base64
+        if (Platform.OS === 'web' && uri.startsWith('data:')) {
+          console.log('🔄 Convirtiendo base64 a File...');
+
+          // Convertir base64 a blob
+          const response = await fetch(uri);
+          const blob = await response.blob();
+
+          // Crear un File desde el blob
+          const filename = `document-${Date.now()}.jpg`;
+          const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+
+          console.log('✅ File creado:', file.name, file.type, file.size);
+
+          await uploadDocumentFile(file);
+        } else {
+          // React Native normal
+          const filename = uri.split('/').pop() || 'doc.jpg';
+          const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+          const type = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+          console.log('📋 Document info:', { uri, filename, type });
+
+          await uploadDocumentFile({ uri, name: filename, type });
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error picking document:', error);
+      Alert.alert('Error', 'No se pudo seleccionar el documento');
+    }
+  };
+
+  // También actualizar pickImage para que maneje base64 correctamente
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -275,15 +379,42 @@ export default function Profile() {
         aspect: [1, 1],
         quality: 0.7,
       });
+
+      console.log('🖼️ Image picker result:', result);
+
       if (!result.canceled && result.assets[0]) {
-        const uri = result.assets[0].uri;
-        const filename = uri.split('/').pop() || 'photo.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        await uploadProfileImageFile({ uri, name: filename, type });
+        const asset = result.assets[0];
+        const uri = asset.uri;
+
+        // En web, expo-image-picker puede devolver base64
+        if (Platform.OS === 'web' && uri.startsWith('data:')) {
+          console.log('🔄 Convirtiendo base64 a File...');
+
+          // Convertir base64 a blob
+          const response = await fetch(uri);
+          const blob = await response.blob();
+
+          // Crear un File desde el blob
+          const filename = `profile-${Date.now()}.jpg`;
+          const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+
+          console.log('✅ File creado:', file.name, file.type, file.size);
+
+          await uploadProfileImageFile(file);
+        } else {
+          // React Native normal
+          const filename = uri.split('/').pop() || 'photo.jpg';
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+          console.log('📸 Image info:', { uri, filename, type });
+
+          await uploadProfileImageFile({ uri, name: filename, type });
+        }
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      console.error('❌ Error picking image:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
     }
   };
 
@@ -464,7 +595,7 @@ export default function Profile() {
 
       <DocumentCard
         documentUrl={user?.document_image_url}
-        onUpload={async () => {/* implement */ }}
+        onUpload={pickDocument}
         onDelete={() => updateModal('deleteDocument', true)}
         loading={loadingStates.document}
         deleting={loadingStates.deletingDocument}

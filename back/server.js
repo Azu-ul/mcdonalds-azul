@@ -5,7 +5,6 @@ import passport from 'passport';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
-import userRoutes from './routes/user.js';
 import adminRoutes from './routes/admin.js';
 import homeRoutes from './routes/home.js';
 import profileRoutes from './routes/profile.js';
@@ -37,7 +36,6 @@ app.use(passport.initialize());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoutes);
-app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/profile', profileRoutes);

@@ -9,12 +9,15 @@ import {
     Platform,
 } from "react-native";
 
+type PickerMode = 'image' | 'document';
+
 interface ImagePickerModalProps {
     visible: boolean;
     onClose: () => void;
     onTakePhoto: () => void;
     onChooseGallery: () => void;
     onCaptureWebcam?: (file: File) => void;
+    mode?: PickerMode;
 }
 
 export default function ImagePickerModal({
@@ -23,6 +26,7 @@ export default function ImagePickerModal({
     onTakePhoto,
     onChooseGallery,
     onCaptureWebcam,
+    mode = 'image',
 }: ImagePickerModalProps) {
     const [showWebcam, setShowWebcam] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -36,7 +40,7 @@ export default function ImagePickerModal({
     }, [visible]);
 
     const startWebcam = async () => {
-        if (Platform.OS !== 'web') return;
+        if (Platform.OS !== 'web' || mode !== 'image') return;
 
         try {
             console.log('📷 Starting webcam...');
@@ -51,7 +55,6 @@ export default function ImagePickerModal({
 
             streamRef.current = stream;
 
-            // Esperar un momento para asegurar que el video ref esté disponible
             setTimeout(() => {
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
@@ -83,12 +86,9 @@ export default function ImagePickerModal({
     };
 
     const capturePhoto = () => {
-        if (!videoRef.current || Platform.OS !== 'web') return;
+        if (!videoRef.current || Platform.OS !== 'web' || mode !== 'image') return;
 
         console.log('📸 Capturing photo...');
-        console.log('Video element:', videoRef.current);
-        console.log('Video dimensions:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
-
         if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
             console.error('❌ Video not ready');
             alert('El video no está listo. Espera un momento e intenta de nuevo.');
@@ -101,18 +101,13 @@ export default function ImagePickerModal({
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
-            // 🔄 Invertir la imagen antes de dibujar
             ctx.translate(canvas.width, 0);
             ctx.scale(-1, 1);
             ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-            console.log('✅ Image drawn to canvas');
-
             canvas.toBlob((blob) => {
-                console.log('📦 Blob created:', blob);
                 if (blob && onCaptureWebcam) {
-                    const file = new File([blob], 'webcam-photo.jpg', { type: 'image/jpeg' });
-                    console.log('✅ Photo captured:', file.name, file.size, 'bytes');
+                    const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
                     onCaptureWebcam(file);
                     stopWebcam();
                     setShowWebcam(false);
@@ -122,13 +117,11 @@ export default function ImagePickerModal({
                     alert('Error al capturar la foto. Intenta de nuevo.');
                 }
             }, 'image/jpeg', 0.8);
-        } else {
-            console.error('❌ Failed to get canvas context');
         }
     };
 
     const handleTakePhoto = () => {
-        if (Platform.OS === 'web') {
+        if (Platform.OS === 'web' && mode === 'image') {
             startWebcam();
         } else {
             onTakePhoto();
@@ -141,19 +134,17 @@ export default function ImagePickerModal({
         onClose();
     };
 
-    // Vista de cámara web (solo web)
-    if (Platform.OS === 'web' && showWebcam) {
+    // Vista de cámara web (solo web + modo imagen)
+    if (Platform.OS === 'web' && showWebcam && mode === 'image') {
         return (
             <Modal visible={visible} transparent animationType="fade">
                 <View style={styles.overlay}>
                     <View style={styles.webcamContainer}>
                         <Text style={styles.webcamTitle}>📷 Tomar foto</Text>
-
                         <View style={styles.videoWrapper}>
                             <video
                                 ref={(ref) => {
                                     videoRef.current = ref;
-                                    console.log('📹 Video ref set:', ref);
                                 }}
                                 style={{
                                     width: '100%',
@@ -178,7 +169,6 @@ export default function ImagePickerModal({
                             >
                                 <Text style={styles.cancelText}>Cancelar</Text>
                             </TouchableOpacity>
-
                             <TouchableOpacity
                                 style={styles.confirmButton}
                                 onPress={capturePhoto}
@@ -192,30 +182,142 @@ export default function ImagePickerModal({
         );
     }
 
-    // Vista de selección (igual que CustomModal)
+    // Vista principal de selección
+    const isDocument = mode === 'document';
+    const title = isDocument ? '🪪 Subir documento' : '📷 Foto de perfil';
+    const message = isDocument
+        ? (Platform.OS === 'web'
+            ? 'Selecciona un archivo (JPG, PNG o PDF)'
+            : 'Selecciona una imagen del documento')
+        : 'Selecciona una opción';
+    const galleryText = isDocument ? '📎 Elegir archivo' : '🖼️ Elegir de galería';
+
     return (
         <Modal visible={visible} transparent animationType="fade">
             <View style={styles.overlay}>
                 <View style={styles.modalContainer}>
-                    <Text style={styles.title}>Foto de perfil</Text>
-                    <Text style={styles.message}>Selecciona una opción</Text>
+                    <Text style={styles.title}>{title}</Text>
+                    <Text style={styles.message}>{message}</Text>
 
                     <View style={styles.buttonContainer}>
-                        <TouchableOpacity
-                            style={styles.optionButton}
-                            onPress={handleTakePhoto}
-                        >
-                            <Text style={styles.optionText}>
-                                {Platform.OS === 'web' ? '📷 Usar cámara' : '📷 Tomar foto'}
-                            </Text>
-                        </TouchableOpacity>
+                        {/* Cámara solo para imágenes */}
+                        {!isDocument && (
+                            <TouchableOpacity
+                                style={styles.optionButton}
+                                onPress={handleTakePhoto}
+                            >
+                                <Text style={styles.optionText}>
+                                    {Platform.OS === 'web' ? '📷 Usar cámara' : '📷 Tomar foto'}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
 
-                        <TouchableOpacity
-                            style={styles.optionButton}
-                            onPress={handleChooseGallery}
-                        >
-                            <Text style={styles.optionText}>🖼️ Elegir de galería</Text>
-                        </TouchableOpacity>
+                        {isDocument && Platform.OS === 'web' ? (
+                            <>
+                                <input
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.pdf"
+                                    style={{
+                                        position: 'absolute',
+                                        opacity: 0,
+                                        width: 1,
+                                        height: 1,
+                                        overflow: 'hidden',
+                                    }}
+                                    id="file-input-doc"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        console.log('📁 Archivo seleccionado:', file);
+                                        if (file) {
+                                            if (onCaptureWebcam) {
+                                                console.log('📤 Enviando archivo:', file.name, file.type, file.size);
+                                                onCaptureWebcam(file);
+                                            }
+                                            onClose();
+                                        }
+                                        e.target.value = '';
+                                    }}
+                                />
+                                <label
+                                    htmlFor="file-input-doc"
+                                    style={{
+                                        backgroundColor: "#FA8072",
+                                        padding: 12,
+                                        borderRadius: 8,
+                                        width: '100%',
+                                        textAlign: 'center',
+                                        color: '#fff',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        userSelect: 'none',
+                                        display: 'block',
+                                    }}
+                                >
+                                    {galleryText}
+                                </label>
+                            </>
+                        ) : !isDocument ? (
+                            // Esto es para la foto de perfil (imagen)
+                            Platform.OS === 'web' ? (
+                                <>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        style={{
+                                            position: 'absolute',
+                                            opacity: 0,
+                                            width: 1,
+                                            height: 1,
+                                            overflow: 'hidden',
+                                        }}
+                                        id="file-input-image"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            console.log('🖼️ Imagen seleccionada:', file);
+                                            if (file) {
+                                                if (onCaptureWebcam) {
+                                                    console.log('📤 Enviando imagen:', file.name, file.type, file.size);
+                                                    onCaptureWebcam(file);
+                                                }
+                                                onClose();
+                                            }
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                    <label
+                                        htmlFor="file-input-image"
+                                        style={{
+                                            backgroundColor: "#FA8072",
+                                            padding: 12,
+                                            borderRadius: 8,
+                                            width: '100%',
+                                            textAlign: 'center',
+                                            color: '#fff',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            userSelect: 'none',
+                                            display: 'block',
+                                        }}
+                                    >
+                                        {galleryText}
+                                    </label>
+                                </>
+                            ) : (
+                                <TouchableOpacity
+                                    style={styles.optionButton}
+                                    onPress={handleChooseGallery}
+                                >
+                                    <Text style={styles.optionText}>{galleryText}</Text>
+                                </TouchableOpacity>
+                            )
+                        ) : (
+                            <TouchableOpacity
+                                style={styles.optionButton}
+                                onPress={handleChooseGallery}
+                            >
+                                <Text style={styles.optionText}>{galleryText}</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -237,7 +339,7 @@ const styles = StyleSheet.create({
     modalContainer: {
         width: "40%",
         minWidth: 320,
-        maxWidth: 400, // ← Agregar máximo para desktop
+        maxWidth: 400,
         backgroundColor: "#fff",
         borderRadius: 16,
         padding: 20,
@@ -281,75 +383,75 @@ const styles = StyleSheet.create({
         color: "#666",
         fontWeight: "600",
     },
-    // Estilos para cámara web - MEJORADOS PARA RESPONSIVE
     webcamContainer: {
-        width: '90%', // ← Cambiado a porcentaje responsive
-        maxWidth: 500, // ← Tamaño máximo en desktop
-        minWidth: 300, // ← Tamaño mínimo
+        width: '90%',
+        maxWidth: 500,
+        minWidth: 300,
         backgroundColor: "#fff",
         borderRadius: 16,
         padding: 20,
         alignItems: "center",
         elevation: 10,
-        // Para mobile
-        ...Platform.select({
-            web: {
-                // En web mantenemos el comportamiento actual
-            },
-            default: {
-                width: '95%', // ← Más ancho en mobile nativo
-                maxWidth: 400,
-            }
-        })
     },
     webcamTitle: {
-        fontSize: 18, // ← Un poco más grande
+        fontSize: 18,
         fontWeight: "700",
         color: "#FA8072",
         marginBottom: 16,
     },
     videoWrapper: {
-        width: '100%', // ← Ancho responsive
-        maxWidth: 400, // ← Máximo para desktop
-        aspectRatio: 1, // ← Mantener relación cuadrada
+        width: '100%',
+        maxWidth: 400,
+        aspectRatio: 1,
         backgroundColor: "#000",
         borderRadius: 12,
         overflow: "hidden",
         marginBottom: 16,
-        // Para mobile
-        ...Platform.select({
-            web: {
-                height: 300, // ← Altura fija en web
-            },
-            default: {
-                height: 300, // ← Altura fija en mobile nativo
-            }
-        })
+        height: 300,
     },
     cancelButton: {
         flex: 1,
         backgroundColor: "#e0e0e0",
-        paddingVertical: 12, // ← Un poco más de padding
+        paddingVertical: 12,
         borderRadius: 8,
-        marginHorizontal: 5, // ← Espaciado entre botones
+        marginHorizontal: 5,
     },
     confirmButton: {
         flex: 1,
         backgroundColor: "#FA8072",
-        paddingVertical: 12, // ← Un poco más de padding
+        paddingVertical: 12,
         borderRadius: 8,
-        marginHorizontal: 5, // ← Espaciado entre botones
+        marginHorizontal: 5,
     },
     cancelText: {
         textAlign: "center",
         color: "#333",
         fontWeight: "600",
-        fontSize: 14, // ← Tamaño consistente
+        fontSize: 14,
     },
     confirmText: {
         textAlign: "center",
         color: "#fff",
         fontWeight: "600",
-        fontSize: 14, // ← Tamaño consistente
+        fontSize: 14,
+    },
+    // Estilos web-only (usados condicionalmente)
+    webInput: {
+        position: 'absolute',
+        opacity: 0,
+        width: 1,
+        height: 1,
+        overflow: 'hidden',
+    },
+    webInputLabel: {
+        backgroundColor: "#FA8072",
+        padding: 12,
+        borderRadius: 8,
+        width: '100%',
+        textAlign: 'center',
+        color: '#fff',
+        fontWeight: '600',
+        cursor: 'pointer',
+        userSelect: 'none',
     },
 });
