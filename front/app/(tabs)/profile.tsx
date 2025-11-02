@@ -688,4 +688,5 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   deleteButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  
 });

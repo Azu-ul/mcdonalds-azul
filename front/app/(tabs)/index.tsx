@@ -291,22 +291,23 @@ export default function Home() {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Botón de carrito - mismo estilo que "Agregar" */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => router.push('/cart')}
-        >
-          <Text style={styles.addButtonText}>
-            {totalItems > 0 ? `${totalItems} productos` : 'Carrito vacío'}
-          </Text>
-          <Text style={styles.addButtonPrice}>
-            {totalItems > 0
-              ? `$${totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-              : ''}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Botón de carrito - solo mostrar si hay items */}
+      {totalItems > 0 && (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push('/product/cart')}
+          >
+            <Text style={styles.addButtonText}>
+              {totalItems} {totalItems === 1 ? 'producto' : 'productos'}
+            </Text>
+            <Text style={styles.addButtonPrice}>
+              ${totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
     </View>
   );
 }

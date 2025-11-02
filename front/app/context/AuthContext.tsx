@@ -13,7 +13,7 @@ type User = {
   address?: string;
   latitude: number | null;
   longitude: number | null;
-  locationType?: 'pickup' | 'delivery'; // Nueva propiedad
+  locationType?: 'pickup' | 'delivery';
   selectedRestaurant?: {
     id: number;
     name: string;
@@ -99,8 +99,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const res = await api.get('/auth/me');
       const updatedUser = res.data.user;
 
-      // Obtener roles del usuario
-      const rolesRes = await api.get(`/user/${updatedUser.id}/roles`);
+      // CAMBIO AQUÍ: Usar /profile/roles en lugar de /user/${id}/roles
+      const rolesRes = await api.get('/profile/roles');
       updatedUser.roles = rolesRes.data.roles || [];
 
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
@@ -148,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Actualizamos el estado y obtenemos el usuario actualizado
       let updatedUser: User | undefined;
       setUser(prev => {
-        if (!prev) return prev; // si prev es undefined
+        if (!prev) return prev;
         updatedUser = { ...prev, ...data };
 
         if (updatedUser.roles?.includes('player')) {
@@ -167,7 +167,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
   };
-
 
   const setAsGuest = async () => {
     try {

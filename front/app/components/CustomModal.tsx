@@ -1,83 +1,86 @@
-// app/components/CustomModal.tsx
-import React from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  GestureResponderEvent,
-} from "react-native";
+import React from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 
-type ModalType = "confirm" | "delete" | "question" | "info";
-
-interface CustomModalProps {
+type CustomModalProps = {
   visible: boolean;
-  type?: ModalType;
-  title?: string;
-  message?: string;
+  type: 'success' | 'error' | 'info' | 'delete';
+  title: string;
+  message: string;
   confirmText?: string;
   cancelText?: string;
   showCancel?: boolean;
-  onConfirm?: (event: GestureResponderEvent) => void;
-  onCancel?: (event: GestureResponderEvent) => void;
-  children?: React.ReactNode; // 👈 ACEPTAR CHILDREN
-}
+  onConfirm?: () => void;
+  onCancel: () => void;
+};
 
 export default function CustomModal({
   visible,
-  type = "info",
+  type,
   title,
   message,
-  confirmText = "Aceptar",
-  cancelText = "Cancelar",
+  confirmText = 'Aceptar',
+  cancelText = 'Cancelar',
   showCancel = false,
   onConfirm,
   onCancel,
-  children, // 👈 DES ESTRUCTURAR CHILDREN
 }: CustomModalProps) {
-  const colors = {
-    confirm: "#FA8072",
-    delete: "#E53935",
-    question: "#2196F3",
-    info: "#FA8072",
+  const getColors = () => {
+    switch (type) {
+      case 'success':
+        return { bg: '#27AE60', text: '#fff' };
+      case 'error':
+      case 'delete':
+        return { bg: '#DA291C', text: '#fff' };
+      case 'info':
+        return { bg: '#FFBC0D', text: '#292929' };
+      default:
+        return { bg: '#FFBC0D', text: '#292929' };
+    }
   };
 
-  const color = colors[type];
+  const colors = getColors();
+  const isConfirmDisabled = !onConfirm;
 
-  // Si se pasan children, renderizamos el modo personalizado
-  if (children) {
-    return (
-      <Modal visible={visible} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={[styles.modalContainer, { padding: 0, alignItems: 'flex-start' }]}>
-            {children}
-          </View>
-        </View>
-      </Modal>
-    );
-  }
-
-  // Si no, usamos el modo simple (mensaje + botones)
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
-          <Text style={[styles.title, { color }]}>{title || "Aviso"}</Text>
-          <Text style={styles.message}>{message || "¿Estás seguro?"}</Text>
+          <View style={[styles.header, { backgroundColor: colors.bg }]}>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          </View>
 
-          <View style={[styles.buttonContainer, !showCancel && styles.singleButton]}>
+          <View style={styles.body}>
+            <Text style={styles.message}>{message}</Text>
+          </View>
+
+          <View style={styles.footer}>
             {showCancel && (
-              <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-                <Text style={styles.cancelText}>{cancelText}</Text>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={onCancel}
+              >
+                <Text style={styles.cancelButtonText}>{cancelText}</Text>
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
-              style={[styles.confirmButton, { backgroundColor: color }]}
+              style={[
+                styles.button,
+                styles.confirmButton,
+                { backgroundColor: colors.bg },
+                isConfirmDisabled && styles.disabledButton,
+              ]}
               onPress={onConfirm}
+              disabled={isConfirmDisabled}
             >
-              <Text style={styles.confirmText}>{confirmText}</Text>
+              <Text style={[styles.confirmButtonText, { color: colors.text }]}>
+                {confirmText}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -89,59 +92,84 @@ export default function CustomModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: "flex-end", // Para que aparezca desde abajo (como en tu diseño)
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   modalContainer: {
-    width: "100%",
-    maxWidth: 500,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 25,
-    alignItems: "center",
-    maxHeight: "80%",
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+      web: {
+        boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.15)',
+      },
+    }),
+  },
+  header: {
+    padding: 20,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  body: {
+    padding: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   message: {
     fontSize: 16,
-    color: "#333",
-    textAlign: "center",
-    marginBottom: 20,
+    color: '#333',
+    textAlign: 'center',
+    lineHeight: 24,
   },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    gap: 10,
+  footer: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
   },
-  singleButton: {
-    justifyContent: "center",
+  button: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButton: {
-    flex: 1,
-    backgroundColor: "#FFB6A3",
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
   },
   confirmButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    // backgroundColor se establece dinámicamente
   },
-  cancelText: {
-    textAlign: "center",
-    color: "#fff",
-    fontWeight: "600",
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
-  confirmText: {
-    textAlign: "center",
-    color: "#fff",
-    fontWeight: "600",
+  disabledButton: {
+    opacity: 0.5,
   },
 });
