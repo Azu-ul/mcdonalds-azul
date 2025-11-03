@@ -553,6 +553,30 @@ export default function Profile() {
     );
   }
 
+  // Función para eliminar el documento
+  const handleDeleteDocument = async () => {
+    try {
+      updateLoadingState('deletingDocument', true);
+      updateModal('deleteDocument', false);
+
+      const token = await AsyncStorage.getItem('token');
+      await api.delete('/profile/document', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const updatedUser = { ...user, document_image_url: null };
+      setUser(updatedUser as User);
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
+      Alert.alert('Éxito', 'Documento eliminado correctamente');
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      Alert.alert('Error', error?.response?.data?.error || 'No se pudo eliminar el documento');
+    } finally {
+      updateLoadingState('deletingDocument', false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <ProfileHeader onBack={() => router.push('/')} />
@@ -639,6 +663,18 @@ export default function Profile() {
         }}
       />
 
+      <CustomModal
+        visible={modals.deleteDocument}
+        type="delete"
+        title="Eliminar documento"
+        message="¿Estás seguro de que querés eliminar tu documento? Esta acción no se puede deshacer."
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        showCancel={true}
+        onConfirm={handleDeleteDocument}
+        onCancel={() => updateModal('deleteDocument', false)}
+      />
+
       <ImagePickerModal
         visible={modals.imagePicker}
         onClose={() => updateModal('imagePicker', false)}
@@ -688,5 +724,5 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   deleteButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  
+
 });

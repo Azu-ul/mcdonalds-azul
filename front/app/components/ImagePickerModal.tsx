@@ -130,8 +130,27 @@ export default function ImagePickerModal({
     };
 
     const handleChooseGallery = () => {
-        onChooseGallery();
-        onClose();
+        if (Platform.OS === 'web' && onCaptureWebcam) {
+            // En web, usar input file para ambos modos pero con estilos unificados
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = mode === 'document' ? '.jpg,.jpeg,.png,.pdf' : 'image/*';
+            
+            input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (file) {
+                    console.log(`📁 ${mode === 'document' ? 'Documento' : 'Imagen'} seleccionado:`, file.name, file.type, file.size);
+                    onCaptureWebcam(file);
+                }
+                onClose();
+            };
+            
+            input.click();
+        } else {
+            // En móvil, usar la función existente
+            onChooseGallery();
+            onClose();
+        }
     };
 
     // Vista de cámara web (solo web + modo imagen)
@@ -186,11 +205,8 @@ export default function ImagePickerModal({
     const isDocument = mode === 'document';
     const title = isDocument ? '🪪 Subir documento' : '📷 Foto de perfil';
     const message = isDocument
-        ? (Platform.OS === 'web'
-            ? 'Selecciona un archivo (JPG, PNG o PDF)'
-            : 'Selecciona una imagen del documento')
+        ? 'Selecciona una imagen del documento'
         : 'Selecciona una opción';
-    const galleryText = isDocument ? '📎 Elegir archivo' : '🖼️ Elegir de galería';
 
     return (
         <Modal visible={visible} transparent animationType="fade">
@@ -212,112 +228,15 @@ export default function ImagePickerModal({
                             </TouchableOpacity>
                         )}
 
-                        {isDocument && Platform.OS === 'web' ? (
-                            <>
-                                <input
-                                    type="file"
-                                    accept=".jpg,.jpeg,.png,.pdf"
-                                    style={{
-                                        position: 'absolute',
-                                        opacity: 0,
-                                        width: 1,
-                                        height: 1,
-                                        overflow: 'hidden',
-                                    }}
-                                    id="file-input-doc"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        console.log('📁 Archivo seleccionado:', file);
-                                        if (file) {
-                                            if (onCaptureWebcam) {
-                                                console.log('📤 Enviando archivo:', file.name, file.type, file.size);
-                                                onCaptureWebcam(file);
-                                            }
-                                            onClose();
-                                        }
-                                        e.target.value = '';
-                                    }}
-                                />
-                                <label
-                                    htmlFor="file-input-doc"
-                                    style={{
-                                        backgroundColor: "#FA8072",
-                                        padding: 12,
-                                        borderRadius: 8,
-                                        width: '100%',
-                                        textAlign: 'center',
-                                        color: '#fff',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        userSelect: 'none',
-                                        display: 'block',
-                                    }}
-                                >
-                                    {galleryText}
-                                </label>
-                            </>
-                        ) : !isDocument ? (
-                            // Esto es para la foto de perfil (imagen)
-                            Platform.OS === 'web' ? (
-                                <>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        style={{
-                                            position: 'absolute',
-                                            opacity: 0,
-                                            width: 1,
-                                            height: 1,
-                                            overflow: 'hidden',
-                                        }}
-                                        id="file-input-image"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            console.log('🖼️ Imagen seleccionada:', file);
-                                            if (file) {
-                                                if (onCaptureWebcam) {
-                                                    console.log('📤 Enviando imagen:', file.name, file.type, file.size);
-                                                    onCaptureWebcam(file);
-                                                }
-                                                onClose();
-                                            }
-                                            e.target.value = '';
-                                        }}
-                                    />
-                                    <label
-                                        htmlFor="file-input-image"
-                                        style={{
-                                            backgroundColor: "#FA8072",
-                                            padding: 12,
-                                            borderRadius: 8,
-                                            width: '100%',
-                                            textAlign: 'center',
-                                            color: '#fff',
-                                            fontWeight: '600',
-                                            cursor: 'pointer',
-                                            userSelect: 'none',
-                                            display: 'block',
-                                        }}
-                                    >
-                                        {galleryText}
-                                    </label>
-                                </>
-                            ) : (
-                                <TouchableOpacity
-                                    style={styles.optionButton}
-                                    onPress={handleChooseGallery}
-                                >
-                                    <Text style={styles.optionText}>{galleryText}</Text>
-                                </TouchableOpacity>
-                            )
-                        ) : (
-                            <TouchableOpacity
-                                style={styles.optionButton}
-                                onPress={handleChooseGallery}
-                            >
-                                <Text style={styles.optionText}>{galleryText}</Text>
-                            </TouchableOpacity>
-                        )}
+                        {/* Galería para ambos modos - ahora con estilo unificado */}
+                        <TouchableOpacity
+                            style={styles.optionButton}
+                            onPress={handleChooseGallery}
+                        >
+                            <Text style={styles.optionText}>
+                                {isDocument ? '📎 Elegir de galería' : '🖼️ Elegir de galería'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -434,24 +353,5 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontWeight: "600",
         fontSize: 14,
-    },
-    // Estilos web-only (usados condicionalmente)
-    webInput: {
-        position: 'absolute',
-        opacity: 0,
-        width: 1,
-        height: 1,
-        overflow: 'hidden',
-    },
-    webInputLabel: {
-        backgroundColor: "#FA8072",
-        padding: 12,
-        borderRadius: 8,
-        width: '100%',
-        textAlign: 'center',
-        color: '#fff',
-        fontWeight: '600',
-        cursor: 'pointer',
-        userSelect: 'none',
     },
 });
