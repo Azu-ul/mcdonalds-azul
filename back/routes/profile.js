@@ -431,11 +431,12 @@ router.get('/orders', authenticateToken, async (req, res) => {
     const [orders] = await pool.query(`
       SELECT 
         o.id,
-        o.total_amount,
+        o.total,
         o.status,
+        o.order_type,
         o.delivery_address,
         o.created_at,
-        COUNT(oi.id) as item_count
+        COUNT(oi.id) as items_count
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       WHERE o.user_id = ?
