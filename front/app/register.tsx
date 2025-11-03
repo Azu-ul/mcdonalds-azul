@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import api, { API_URL } from '../config/api';
 import { Platform } from 'react-native';
@@ -52,14 +53,14 @@ export default function Register() {
   const [modalTitle, setModalTitle] = useState('Aviso');
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [processingAuth, setProcessingAuth] = useState(false);
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
 
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', ({ window }) => {
-      setScreenWidth(window.width);
-    });
-    return () => subscription?.remove();
-  }, []);
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  });
 
   const isMobile = screenWidth < 768;
 
@@ -69,76 +70,73 @@ export default function Register() {
   });
 
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      if (params.token && params.user) {
-        handleOAuthCallback(params.token as string, params.user as string);
-      }
-      if (params.error) {
-        if (params.error === 'account_exists') {
-          const provider = params.provider as string;
-          showModal(
-            'delete',
-            'Cuenta Existente',
-            `Esta cuenta ya está registrada con ${provider === 'local' ? 'contraseña' : 'Google'}. Por favor, inicia sesión en lugar de registrarte.`
-          );
-        } else {
-          showModal('delete', 'Error', 'No se pudo completar el registro con Google');
-        }
-      }
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleAuth(id_token);
     }
-  }, [params]);
+  }, [response]);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleMessage = (event: MessageEvent) => {
-        const clientUrl = API_URL.replace('/api', '');
-        if (event.origin !== clientUrl && event.origin !== window.location.origin) {
-          console.warn('⚠️ Message from untrusted origin:', event.origin);
-          return;
+  const handleGoogleAuth = async (idToken: string) => {
+    if (processingAuth) return;
+
+    try {
+      setProcessingAuth(true);
+      setLoading(true);
+
+      if (Platform.OS === 'web') {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      console.log('🔐 Enviando token a backend...');
+
+      const res = await api.post('/auth/google/register', { id_token: idToken });
+      const { token, user } = res.data;
+
+      console.log('👤 Usuario recibido del backend:', user);
+      console.log('📸 URL de foto de perfil:', user.profile_image_url);
+
+      try {
+        const rolesRes = await api.get(`/user/${user.id}/roles`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        user.roles = rolesRes.data.roles || [];
+      } catch (rolesError) {
+        console.warn('⚠️ No se pudieron obtener los roles:', rolesError);
+        user.roles = [];
+      }
+
+      console.log('💾 Guardando en AuthContext:', user);
+
+      await authLogin(token, user);
+      router.replace('/');
+
+    } catch (err: any) {
+      console.error('❌ Error en handleGoogleAuth:', err);
+      console.error('📄 Respuesta del servidor:', err?.response?.data);
+
+      let message = 'Error al registrar con Google';
+      if (err?.response?.data?.error) {
+        message = err.response.data.error;
+        if (message.includes('ya está registrado')) {
+          message += '. Por favor inicia sesión en lugar de registrarte.';
         }
+      }
+      setModalType('delete');
+      setModalTitle('Error');
+      setModalMessage(message);
+      setModalVisible(true);
 
-        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          handleOAuthCallback(event.data.token, event.data.user);
-        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-          if (event.data.error === 'account_exists') {
-            const provider = event.data.provider || 'local';
-            showModal(
-              'delete',
-              'Cuenta Existente',
-              `Esta cuenta ya está registrada con ${provider === 'local' ? 'contraseña' : 'Google'}. Por favor, inicia sesión en lugar de registrarte.`
-            );
-          } else {
-            showModal('delete', 'Error', 'No se pudo completar el registro con Google');
-          }
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-      return () => window.removeEventListener('message', handleMessage);
+    } finally {
+      setLoading(false);
+      setProcessingAuth(false);
     }
-  }, []);
+  };
 
   const showModal = (type: 'info' | 'delete', title: string, message: string) => {
     setModalType(type);
     setModalTitle(title);
     setModalMessage(message);
     setModalVisible(true);
-  };
-
-  const handleOAuthCallback = async (token: string, userStr: string) => {
-    try {
-      const user = JSON.parse(decodeURIComponent(userStr));
-      
-      const rolesRes = await api.get(`/user/${user.id}/roles`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      user.roles = rolesRes.data.roles || [];
-      
-      await authLogin(token, user);
-      router.replace('/');
-    } catch (error) {
-      showModal('delete', 'Error', 'Error al procesar el registro');
-    }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -152,12 +150,12 @@ export default function Register() {
       };
       const res = await api.post('/auth/register', payload);
       const { token, user } = res.data;
-      
+
       const rolesRes = await api.get(`/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       user.roles = rolesRes.data.roles || [];
-      
+
       await authLogin(token, user);
       router.replace('/');
     } catch (err: any) {
@@ -168,45 +166,98 @@ export default function Register() {
     }
   };
 
-  const handleGoogleRegister = async () => {
-    try {
-      if (Platform.OS === 'web') {
-        const width = 500;
-        const height = 600;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
+  const handleGoogleLoginWeb = () => {
+    const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    const redirectUri = window.location.origin;
+    const scope = 'openid profile email';
+    const responseType = 'id_token';
+    const nonce = Math.random().toString(36).substring(7);
 
-        const popup = window.open(
-          `${API_URL}/auth/google`,
-          'Google Register',
-          `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
-        );
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${clientId}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=${responseType}&` +
+      `scope=${encodeURIComponent(scope)}&` +
+      `nonce=${nonce}&` +
+      `prompt=select_account`;
 
-        if (!popup) {
-          showModal(
-            'delete',
-            'Error',
-            'No se pudo abrir la ventana de autenticación. Verifica que no estés bloqueando popups.'
-          );
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    const popup = window.open(authUrl, 'Google Register', `width=${width},height=${height},left=${left},top=${top}`);
+    if (!popup) {
+      setModalType('delete');
+      setModalTitle('Error');
+      setModalMessage('Por favor permite los popups para esta página');
+      setModalVisible(true);
+      return;
+    }
+
+    const checkPopup = setInterval(() => {
+      try {
+        if (popup.closed) {
+          clearInterval(checkPopup);
+          setLoading(false);
+          return;
         }
-      } else {
-        const result = await WebBrowser.openAuthSessionAsync(
-          `${API_URL}/auth/google`,
-          'mcdonalds-azul://'
-        );
+
+        if (popup.location.href.startsWith(redirectUri)) {
+          const hash = popup.location.hash;
+          if (hash) {
+            const params = new URLSearchParams(hash.substring(1));
+            const idToken = params.get('id_token');
+            if (idToken) {
+              popup.close();
+              clearInterval(checkPopup);
+              handleGoogleAuth(idToken);
+            }
+          }
+        }
+      } catch (error) { }
+    }, 500);
+
+    setTimeout(() => {
+      if (popup && !popup.closed) {
+        popup.close();
+        clearInterval(checkPopup);
+        setModalType('delete');
+        setModalTitle('Error');
+        setModalMessage('El tiempo de autenticación ha expirado');
+        setModalVisible(true);
+        setLoading(false);
       }
-    } catch (error) {
-      showModal('delete', 'Error', 'No se pudo registrar con Google');
+    }, 120000);
+  };
+
+  const handleGoogleLoginMobile = () => {
+    promptAsync();
+  };
+
+  const handleGoogleRegister = () => {
+    if (Platform.OS === 'web') {
+      setLoading(true);
+      handleGoogleLoginWeb();
+    } else {
+      handleGoogleLoginMobile();
     }
   };
+
+  if (processingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFBC0D" />
+        <Text style={styles.loadingText}>Registrando con Google...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
-        {/* Contenedor escalado al 85% */}
         <View style={styles.scaledContainer}>
           <View style={styles.card}>
-            {/* Logo McDonald's */}
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>M</Text>
             </View>
@@ -346,7 +397,11 @@ export default function Register() {
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity style={styles.socialButton} onPress={handleGoogleRegister}>
+            <TouchableOpacity
+              style={[styles.socialButton, loading && styles.buttonDisabled]}
+              onPress={handleGoogleRegister}
+              disabled={loading}
+            >
               <Image source={GoogleIcon} style={styles.googleIcon} />
               <Text style={styles.socialButtonText}>Registrarse con Google</Text>
             </TouchableOpacity>
@@ -371,6 +426,7 @@ export default function Register() {
           message={modalMessage}
           confirmText="Aceptar"
           onConfirm={() => setModalVisible(false)}
+          onCancel={() => setModalVisible(false)}
         />
       </View>
     </ScrollView>
@@ -384,10 +440,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    justifyContent: 'flex-start', // Cambiado de 'center' a 'flex-start'
+    justifyContent: 'flex-start',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
-    paddingVertical: 10, // Reducido el padding vertical
+    paddingVertical: 10,
     paddingHorizontal: 20,
     minHeight: '100%',
   },
@@ -395,7 +451,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.80 }],
     width: '100%',
     alignItems: 'center',
-    marginTop: -50, // Agregado margen superior
+    marginTop: -50,
   },
   card: {
     width: '100%',
@@ -548,5 +604,16 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5'
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666'
   },
 });

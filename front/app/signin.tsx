@@ -323,6 +323,7 @@ export default function Login() {
         message={modalMessage}
         confirmText="Aceptar"
         onConfirm={() => setModalVisible(false)}
+        onCancel={() => setModalVisible(false)}
       />
     </View>
   );

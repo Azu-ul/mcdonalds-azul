@@ -30,23 +30,31 @@ router.get('/', authenticateToken, async (req, res) => {
       cartId = carts[0].id;
     }
 
-    // Obtener items del carrito con detalles
     const [items] = await pool.query(`
-      SELECT 
-        ci.*,
-        p.name as product_name,
-        p.image_url as product_image,
-        ps.size_name,
-        s.name as side_name,
-        d.name as drink_name
-      FROM cart_items ci
-      INNER JOIN products p ON ci.product_id = p.id
-      LEFT JOIN product_sizes ps ON ci.size_id = ps.id
-      LEFT JOIN sides s ON ci.side_id = s.id
-      LEFT JOIN drinks d ON ci.drink_id = d.id
-      WHERE ci.cart_id = ?
-      ORDER BY ci.created_at DESC
-    `, [cartId]);
+  SELECT 
+    ci.*,
+    p.name as product_name,
+    p.image_url as product_image,
+    ps.size_name,
+    s.name as side_name,
+    d.name as drink_name
+  FROM cart_items ci
+  INNER JOIN products p ON ci.product_id = p.id
+  LEFT JOIN product_sizes ps ON ci.size_id = ps.id
+  LEFT JOIN sides s ON ci.side_id = s.id
+  LEFT JOIN drinks d ON ci.drink_id = d.id
+  WHERE ci.cart_id = ?
+  ORDER BY ci.created_at DESC
+`, [cartId]);
+
+    // Obtener info del cupón aplicado
+    const [cartInfo] = await pool.query(`
+  SELECT c.coupon_id, c.discount_amount,
+         cp.title as coupon_title, cp.discount_type, cp.discount_value
+  FROM carts c
+  LEFT JOIN coupons cp ON c.coupon_id = cp.id
+  WHERE c.id = ?
+`, [cartId]);
 
     const formattedItems = items.map(item => ({
       id: item.id,
@@ -62,14 +70,22 @@ router.get('/', authenticateToken, async (req, res) => {
       customizations: item.customizations ? JSON.parse(item.customizations) : null
     }));
 
-    const total = formattedItems.reduce((sum, item) => sum + item.total_price, 0);
+    const subtotal = formattedItems.reduce((sum, item) => sum + item.total_price, 0);
+    const discountAmount = cartInfo[0]?.discount_amount || 0;
+    const total = subtotal - discountAmount;
 
     res.json({
       success: true,
       cart: {
         id: cartId,
         items: formattedItems,
-        total: total
+        subtotal: subtotal,
+        total: total,
+        coupon_id: cartInfo[0]?.coupon_id || null,
+        coupon_title: cartInfo[0]?.coupon_title || null,
+        discount_type: cartInfo[0]?.discount_type || null,
+        discount_value: cartInfo[0]?.discount_value || null,
+        discount_amount: discountAmount
       }
     });
   } catch (error) {

@@ -190,7 +190,9 @@ export default function Cart() {
         Alert.alert('¡Cupón aplicado!', res.data.message);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'No se pudo aplicar el cupón');
+      const message = error.response?.data?.message || 'No se pudo aplicar el cupón';
+      Alert.alert('Error', message);
+      console.error('Error aplicando cupón:', error);
     }
   };
 
@@ -280,27 +282,45 @@ export default function Cart() {
 
 
         {coupons.length > 0 && (
-          <TouchableOpacity
-            style={styles.promoSection}
-            onPress={() => router.push('/coupons')}
-          >
+          <View style={styles.couponsListSection}>
+            <Text style={styles.couponsListTitle}>Cupones disponibles</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.couponsScroll}>
+              {coupons.map((coupon: any) => (
+                <TouchableOpacity
+                  key={coupon.id}
+                  style={styles.couponCard}
+                  onPress={() => {
+                    if (coupon.product_id) {
+                      // Redirigir al producto con el cupón
+                      setSelectedCoupon(coupon);
+                      router.push(`/product/${coupon.product_id}?fromCart=true`);
+                    } else {
+                      // Aplicar cupón al carrito
+                      applyCoupon(coupon.id);
+                    }
+                  }}
+                >
+                  <Text style={styles.couponCardIcon}>🏷️</Text>
+                  <Text style={styles.couponCardTitle}>{coupon.title}</Text>
+                  <Text style={styles.couponCardDescription}>{coupon.description}</Text>
+                  <Text style={styles.couponCardDiscount}>
+                    {coupon.discount_type === 'percentage'
+                      ? `${coupon.discount_value}% OFF`
+                      : `$${coupon.discount_value} OFF`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {appliedCoupon && (
+          <TouchableOpacity style={styles.appliedCouponBanner} onPress={removeCoupon}>
             <Text style={styles.promoIcon}>🏷️</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.promoText}>
-                {appliedCoupon ? `Cupón aplicado: ${appliedCoupon.title}` : 'Descuentos y promociones'}
-              </Text>
-              {!appliedCoupon && (
-                <Text style={styles.promoSubtext}>
-                  {coupons.length} cupón{coupons.length !== 1 ? 'es' : ''} disponible{coupons.length !== 1 ? 's' : ''}
-                </Text>
-              )}
+              <Text style={styles.promoText}>Cupón aplicado: {appliedCoupon.title}</Text>
             </View>
-            {appliedCoupon && (
-              <TouchableOpacity onPress={removeCoupon} style={{ padding: 4 }}>
-                <Text style={styles.removeCouponText}>✕</Text>
-              </TouchableOpacity>
-            )}
-            {!appliedCoupon && <Text style={styles.promoArrow}>→</Text>}
+            <Text style={styles.removeCouponText}>✕</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -503,4 +523,61 @@ const styles = StyleSheet.create({
   },
   discountLabel: { fontSize: 14, color: '#27AE60', fontWeight: '600' },
   removeCouponText: { fontSize: 18, color: '#666', fontWeight: '600' },
+  couponsListSection: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 10,
+  },
+  couponsListTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#292929',
+    marginBottom: 12,
+  },
+  couponsScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  couponCard: {
+    width: 180,
+    backgroundColor: '#FFF8E1',
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
+  },
+  couponCardIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  couponCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#292929',
+    marginBottom: 4,
+  },
+  couponCardDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+  },
+  couponCardDiscount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#27AE60',
+  },
+  appliedCouponBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#27AE60',
+  },
 });

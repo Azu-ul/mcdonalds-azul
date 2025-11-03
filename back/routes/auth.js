@@ -2,7 +2,7 @@ import express from 'express';
 import pool from '../db.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import {authenticateToken} from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -40,7 +40,7 @@ router.post('/register', async (req, res) => {
     const password_hash = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
       `INSERT INTO users (username, email, password_hash, full_name, auth_provider) 
-       VALUES (?, ?, ?, ?, 'local')`,
+          VALUES (?, ?, ?, ?, 'local')`,
       [username, email, password_hash, full_name || username]
     );
 
@@ -75,9 +75,9 @@ router.post('/login', async (req, res) => {
 
     const [users] = await pool.query(
       `SELECT id, username, email, password_hash, full_name, phone, address, 
-              profile_image_url, auth_provider 
-       FROM users 
-       WHERE email = ? AND auth_provider = 'local'`,
+                  profile_image_url, auth_provider 
+          FROM users 
+          WHERE email = ? AND auth_provider = 'local'`,
       [email]
     );
 
@@ -151,7 +151,6 @@ router.post('/google', async (req, res) => {
     );
 
     let user;
-
     if (existingUsers.length > 0) {
       user = existingUsers[0];
 
@@ -162,14 +161,21 @@ router.post('/google', async (req, res) => {
         });
       }
 
-      // Actualizar datos del usuario de Google
+      // Actualizar datos del usuario de Google (incluyendo nombre si cambió)
       await pool.query(
         `UPDATE users SET 
-          profile_image_url = ?,
-          updated_at = NOW()
-        WHERE id = ?`,
-        [profileImageUrl, user.id]
+      profile_image_url = ?,
+      full_name = ?,
+      username = ?,
+      updated_at = NOW()
+    WHERE id = ?`,
+        [profileImageUrl, googleData.name, googleData.name, user.id]
       );
+
+      // Actualizar el objeto user con los nuevos datos
+      user.profile_image_url = profileImageUrl;
+      user.full_name = googleData.name;
+      user.username = googleData.name;
     } else {
       // Crear nuevo usuario
       const username = googleData.email.split('@')[0] + '_' + providerId.substring(0, 8);
@@ -177,8 +183,8 @@ router.post('/google', async (req, res) => {
 
       const [result] = await pool.query(
         `INSERT INTO users 
-        (username, email, full_name, profile_image_url, auth_provider, provider_id, is_verified)
-        VALUES (?, ?, ?, ?, 'google', ?, TRUE)`,
+            (username, email, full_name, profile_image_url, auth_provider, provider_id, is_verified)
+            VALUES (?, ?, ?, ?, 'google', ?, TRUE)`,
         [username, email, fullName, profileImageUrl, providerId]
       );
 
@@ -213,14 +219,86 @@ router.post('/google', async (req, res) => {
   }
 });
 
+router.post('/google/register', async (req, res) => {
+try {
+  const { id_token } = req.body;
+
+  if (!id_token) {
+    return res.status(400).json({ error: 'Token de Google requerido' });
+  }
+
+  const response = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${id_token}`);
+
+  if (!response.ok) {
+    return res.status(401).json({ error: 'Token de Google inválido' });
+  }
+
+  const googleData = await response.json();
+
+  console.log('📸 Datos de Google recibidos:', {
+    name: googleData.name,
+    email: googleData.email,
+    picture: googleData.picture
+  });
+
+  const email = googleData.email;
+  const providerId = googleData.sub;
+  const profileImageUrl = googleData.picture;
+  const fullName = googleData.name || googleData.email.split('@')[0];
+
+  console.log('📸 URL de foto de perfil a guardar:', profileImageUrl);
+
+  const [existingUsers] = await pool.query(
+    'SELECT * FROM users WHERE email = ?',
+    [email]
+  );
+
+  if (existingUsers.length > 0) {
+    return res.status(409).json({
+      error: 'Este email ya está registrado'
+    });
+  }
+
+  const [result] = await pool.query(
+    `INSERT INTO users 
+      (username, email, full_name, profile_image_url, auth_provider, provider_id, is_verified)
+      VALUES (?, ?, ?, ?, 'google', ?, TRUE)`,
+    [fullName, email, fullName, profileImageUrl, providerId]
+  );
+
+  const user = {
+    id: result.insertId,
+    username: fullName,
+    email,
+    full_name: fullName,
+    profile_image_url: profileImageUrl,
+    auth_provider: 'google'
+  };
+
+  console.log('✅ Usuario creado con foto:', user);
+
+  const token = generateToken(user);
+
+  res.json({
+    message: 'Registro con Google exitoso',
+    user,
+    token
+  });
+
+} catch (error) {
+  console.error('❌ Error en Google Register:', error);
+  res.status(500).json({ error: 'Error interno del servidor' });
+}
+});
+
 // Obtener información del usuario autenticado
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const [users] = await pool.query(
       `SELECT id, username, email, full_name, phone, address, latitude, longitude,
-              profile_image_url, document_image_url, auth_provider, is_verified, created_at 
-       FROM users 
-       WHERE id = ?`,
+                  profile_image_url, document_image_url, auth_provider, is_verified, created_at 
+          FROM users 
+          WHERE id = ?`,
       [req.user.id]
     );
 

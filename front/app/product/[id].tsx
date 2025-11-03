@@ -67,7 +67,7 @@ type ModalType = 'ingredients' | 'sides' | 'drinks' | 'condiments' | null;
 
 export default function ProductDetail() {
     const router = useRouter();
-    const { id, edit, cartItemId, size, side, drink, customizations: customizationsParam } = useLocalSearchParams<{
+    const { id, edit, cartItemId, size, side, drink, customizations: customizationsParam, fromCart } = useLocalSearchParams<{
         id: string;
         edit?: string;
         cartItemId?: string;
@@ -75,6 +75,7 @@ export default function ProductDetail() {
         side?: string;
         drink?: string;
         customizations?: string;
+        fromCart?: string;
     }>();
     const { isAuthenticated } = useAuth();
 
@@ -266,11 +267,24 @@ export default function ProductDetail() {
 
             await api.post('/cart/items', payload);
 
-            // ✅ Refrescar el carrito global ANTES de redirigir
+            // Si hay cupón seleccionado, aplicarlo
+            if (selectedCoupon) {
+                try {
+                    await api.post('/cart/apply-coupon', { coupon_id: selectedCoupon.id });
+                } catch (couponError) {
+                    console.error('Error aplicando cupón:', couponError);
+                    // No bloqueamos el flujo si falla el cupón
+                }
+            }
+
             await refetchCart();
 
-            // ✅ Ahora redirigir
-            router.replace('/');
+            // Si viene del carrito, volver al carrito
+            if (fromCart === 'true') {
+                router.replace('/product/cart');
+            } else {
+                router.replace('/');
+            }
         } catch (error: any) {
             console.error('Error al agregar al carrito:', error);
             const message = error.response?.data?.message || 'No se pudo agregar al carrito';
