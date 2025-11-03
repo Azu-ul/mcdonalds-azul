@@ -22,10 +22,10 @@ type CartItem = {
 };
 export default function Cart() {
   const router = useRouter();
+  const [coupons, setCoupons] = useState<any[]>([]);
   const { user, isAuthenticated } = useAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
 
   useEffect(() => {
     // AGREGAR este check para evitar navegar antes del mount
@@ -40,7 +40,7 @@ export default function Cart() {
       loadCart();
       loadRecommendations();
     }
-  }, [isAuthenticated]); // CAMBIAR las dependencias
+  }, [isAuthenticated]);
 
   const loadCart = async () => {
     try {
@@ -57,14 +57,24 @@ export default function Cart() {
 
   const loadRecommendations = async () => {
     try {
-      const res = await api.get('/products/recommendations');
-      setRecommendations(res.data.products?.slice(0, 3) || []);
+      console.log('🔍 Cargando cupones...');
+      const couponsRes = await api.get('/coupons/active');
+      console.log('🏷️ Coupons response:', couponsRes.data);
+
+      setCoupons(couponsRes.data.coupons || []);
+      console.log('✅ Cupones seteados:', couponsRes.data.coupons || []);
     } catch (error) {
-      console.error('Error loading recommendations:', error);
+      console.error('❌ Error loading coupons:', error);
     }
   };
 
   const updateQuantity = async (itemId: number, newQuantity: number) => {
+    // Límite de 5 productos
+    if (newQuantity > 5) {
+      Alert.alert('Límite alcanzado', 'Máximo 5 unidades por producto');
+      return;
+    }
+
     if (newQuantity < 1) {
       removeItem(itemId);
       return;
@@ -72,14 +82,40 @@ export default function Cart() {
 
     try {
       await api.put(`/cart/items/${itemId}`, { quantity: newQuantity });
+
+      // Actualizar estado local
       setCartItems(prev =>
-        prev.map(item =>
-          item.id === itemId ? { ...item, quantity: newQuantity } : item
-        )
+        prev.map(item => {
+          if (item.id === itemId) {
+            const newTotalPrice = item.unit_price * newQuantity;
+            return { ...item, quantity: newQuantity, total_price: newTotalPrice };
+          }
+          return item;
+        })
       );
     } catch (error) {
       Alert.alert('Error', 'No se pudo actualizar la cantidad');
     }
+  };
+
+  const handleEditItem = (item: CartItem) => {
+    // Construir query params con las selecciones actuales
+    const params: any = {
+      edit: 'true',
+      cartItemId: item.id,
+      quantity: item.quantity,
+    };
+
+    if (item.size) params.size = item.size;
+    if (item.side) params.side = item.side;
+    if (item.drink) params.drink = item.drink;
+    if (item.customizations) {
+      params.customizations = JSON.stringify(item.customizations);
+    }
+
+    // Navegar al producto con los parámetros
+    const queryString = new URLSearchParams(params).toString();
+    router.push(`/product/${item.product_id}?${queryString}`);
   };
 
   const removeItem = async (itemId: number) => {
@@ -138,74 +174,83 @@ export default function Cart() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity style={styles.promoSection}>
-          <Text style={styles.promoIcon}>🏷️</Text>
-          <Text style={styles.promoText}>Descuentos y promociones</Text>
-          <Text style={styles.promoArrow}>→</Text>
+        <TouchableOpacity
+          style={styles.locationSection}
+          onPress={() => router.push('/(tabs)/restaurants')}
+        >
+          <Text style={styles.locationIcon}>📍</Text>
+          <View style={styles.locationTextContainer}>
+            <Text style={styles.locationLabel}>Entregar en</Text>
+            <Text style={styles.locationText}>Cambiar restaurante →</Text>
+          </View>
         </TouchableOpacity>
 
         {cartItems.map((item) => (
           <View key={item.id} style={styles.itemCard}>
             <Image
-              // CAMBIAR: item.image_url por item.product_image
               source={{ uri: item.product_image || 'https://via.placeholder.com/80' }}
               style={styles.itemImage}
             />
             <View style={styles.itemDetails}>
               <View style={styles.itemHeader}>
-                {/* CAMBIAR: item.name por item.product_name */}
                 <Text style={styles.itemName}>{item.product_name}</Text>
-                {/* CAMBIAR: usar total_price en lugar de calcular */}
                 <Text style={styles.itemPrice}>
                   $ {item.total_price.toLocaleString('es-AR')}
                 </Text>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => handleEditItem(item)}>
                 <Text style={styles.editLink}>Editar →</Text>
               </TouchableOpacity>
-              {/* CAMBIAR: mostrar las customizaciones correctamente */}
               {(item.size || item.side || item.drink) && (
                 <Text style={styles.customizations}>
                   {[item.size, item.side, item.drink].filter(Boolean).join('\n')}
                 </Text>
               )}
             </View>
+
             <View style={styles.quantityControls}>
               <TouchableOpacity
                 onPress={() => updateQuantity(item.id, item.quantity - 1)}
                 style={styles.quantityButton}
               >
-                <Text style={styles.quantityIcon}>🗑️</Text>
+                <Text style={item.quantity > 1 ? styles.quantityText : styles.quantityIcon}>
+                  {item.quantity > 1 ? '-' : '🗑️'}
+                </Text>
               </TouchableOpacity>
               <Text style={styles.quantity}>{item.quantity}</Text>
+
               <TouchableOpacity
                 onPress={() => updateQuantity(item.id, item.quantity + 1)}
-                style={styles.quantityButton}
+                style={[
+                  styles.quantityButton,
+                  item.quantity >= 5 && styles.quantityButtonDisabled
+                ]}
+                disabled={item.quantity >= 5}
               >
-                <Text style={styles.quantityText}>+</Text>
+                <Text style={[
+                  styles.quantityText,
+                  item.quantity >= 5 && styles.quantityTextDisabled
+                ]}>+</Text>
               </TouchableOpacity>
             </View>
           </View>
         ))}
 
-        {recommendations.length > 0 && (
-          <View style={styles.recommendationsSection}>
-            <Text style={styles.recommendationsTitle}>Otros clientes eligieron</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {recommendations.map((product) => (
-                <TouchableOpacity key={product.id} style={styles.recommendationCard}>
-                  <Image
-                    source={{ uri: product.image_url || 'https://via.placeholder.com/120' }}
-                    style={styles.recommendationImage}
-                  />
-                  <Text style={styles.recommendationName}>{product.name}</Text>
-                  <Text style={styles.recommendationPrice}>
-                    $ {product.price.toLocaleString('es-AR')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+
+        {coupons.length > 0 && (
+          <TouchableOpacity
+            style={styles.promoSection}
+            onPress={() => router.push('/coupons')}
+          >
+            <Text style={styles.promoIcon}>🏷️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.promoText}>Descuentos y promociones</Text>
+              <Text style={styles.promoSubtext}>
+                {coupons.length} cupon{coupons.length !== 1 ? 'es' : ''} disponible{coupons.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <Text style={styles.promoArrow}>→</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
 
@@ -229,8 +274,10 @@ export default function Cart() {
         </View>
       </View>
     </View>
+
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
@@ -266,8 +313,24 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   promoIcon: { fontSize: 20, marginRight: 12 },
-  promoText: { flex: 1, fontSize: 16, color: '#292929', fontWeight: '500' },
+  promoText: { fontSize: 16, color: '#292929', fontWeight: '500' },
   promoArrow: { fontSize: 18, color: '#666' },
+  locationSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  locationIcon: { fontSize: 20, marginRight: 12 },
+  locationTextContainer: { flex: 1 },
+  locationLabel: { fontSize: 12, color: '#666', marginBottom: 2 },
+  locationText: { fontSize: 16, color: '#464646ff', fontWeight: '500' },
+  promoSubtext: { fontSize: 13, color: '#666', marginTop: 2 },
   itemCard: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -304,20 +367,6 @@ const styles = StyleSheet.create({
   quantityIcon: { fontSize: 16 },
   quantityText: { fontSize: 20, fontWeight: '600', color: '#292929' },
   quantity: { fontSize: 16, fontWeight: '600', color: '#292929', marginVertical: 8 },
-  recommendationsSection: { marginTop: 24, paddingLeft: 16 },
-  recommendationsTitle: { fontSize: 18, fontWeight: '700', color: '#292929', marginBottom: 12 },
-  recommendationCard: {
-    width: 150,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 12,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  recommendationImage: { width: '100%', height: 100, borderRadius: 8, marginBottom: 8 },
-  recommendationName: { fontSize: 14, fontWeight: '600', color: '#292929', marginBottom: 4 },
-  recommendationPrice: { fontSize: 14, fontWeight: '700', color: '#292929' },
   footer: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
@@ -350,4 +399,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkoutText: { fontSize: 16, fontWeight: '600', color: '#292929' },
+  quantityButtonDisabled: {
+    opacity: 0.3,
+  },
+  quantityTextDisabled: {
+    color: '#999',
+  },
 });

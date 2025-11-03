@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import api, { API_URL } from '../../config/api';
@@ -34,7 +35,7 @@ type Flyer = {
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated, updateUser } = useAuth();
-  const { cart, loading: cartLoading } = useCart(); // ✅ Obtenemos el carrito del contexto
+  const { cart, loading: cartLoading, refetchCart } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,13 @@ export default function Home() {
   // ✅ Calculamos total de items y precio desde el contexto
   const totalItems = cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
   const totalPrice = cart?.total || 0;
+
+  // ✅ Refrescar carrito cuando la pantalla vuelve a estar en foco
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchCart();
+    }, [])
+  );
 
   useEffect(() => {
     loadProducts();

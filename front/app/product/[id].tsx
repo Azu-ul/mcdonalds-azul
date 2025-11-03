@@ -14,6 +14,7 @@ import SideSelector from './SideSelector';
 import DrinkSelector from './DrinkSelector';
 import CondimentSelector from './CondimentSelector';
 import CustomModal from '../components/CustomModal';
+import SelectionModal from '../components/SelectionModal';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import api, { API_URL } from '../../config/api';
@@ -65,7 +66,15 @@ type ModalType = 'ingredients' | 'sides' | 'drinks' | 'condiments' | null;
 
 export default function ProductDetail() {
     const router = useRouter();
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, edit, cartItemId, size, side, drink, customizations: customizationsParam } = useLocalSearchParams<{
+        id: string;
+        edit?: string;
+        cartItemId?: string;
+        size?: string;
+        side?: string;
+        drink?: string;
+        customizations?: string;
+    }>();
     const { isAuthenticated } = useAuth();
 
     const [product, setProduct] = useState<Product | null>(null);
@@ -122,6 +131,37 @@ export default function ProductDetail() {
                         }
                     });
                     setIngredients(defaultIngredients);
+                }
+
+                if (edit === 'true' && productData) {
+                    // Aplicar tamaño
+                    if (size && productData.sizes) {
+                        const preselectedSize = productData.sizes.find((s: SizeOption) => s.name === size);
+                        if (preselectedSize) setSelectedSize(preselectedSize);
+                    }
+
+                    // Aplicar acompañamiento
+                    if (side && productData.sides) {
+                        const preselectedSide = productData.sides.find((s: SideOption) => s.name === side);
+                        if (preselectedSide) setSelectedSide(preselectedSide);
+                    }
+
+                    // Aplicar bebida
+                    if (drink && productData.drinks) {
+                        const preselectedDrink = productData.drinks.find((d: DrinkOption) => d.name === drink);
+                        if (preselectedDrink) setSelectedDrink(preselectedDrink);
+                    }
+
+                    // Aplicar customizaciones
+                    if (customizationsParam) {
+                        try {
+                            const parsed = JSON.parse(customizationsParam);
+                            if (parsed.ingredients) setIngredients(parsed.ingredients);
+                            if (parsed.condiments) setCondiments(parsed.condiments);
+                        } catch (e) {
+                            console.error('Error parsing customizations:', e);
+                        }
+                    }
                 }
             } catch (err: any) {
                 setError('No se pudo cargar el producto');
@@ -434,7 +474,7 @@ export default function ProductDetail() {
                             </TouchableOpacity>
                         </View>
                     </TouchableOpacity>
-                )}      
+                )}
 
                 <View style={styles.bottomSpacing} />
             </ScrollView>
@@ -488,7 +528,7 @@ export default function ProductDetail() {
             </View>
 
             {/* Modales */}
-            <CustomModal visible={!!modalType}>
+            <SelectionModal visible={!!modalType}>
                 {modalType === 'condiments' && (
                     <CondimentSelector
                         condiments={[
@@ -532,9 +572,7 @@ export default function ProductDetail() {
                         onClose={() => setModalType(null)}
                     />
                 )}
-
-
-            </CustomModal>
+            </SelectionModal>
         </View>
     );
 }

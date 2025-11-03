@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,42 +13,62 @@ import { API_URL } from '../../config/api';
 
 type Coupon = {
   id: number;
+  code: string;
   title: string;
   description: string;
-  discount: string;
-  validUntil: string;
-  image: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  min_purchase: number;
+  max_discount?: number;
+  image_url?: string;
+  start_date?: string;
+  end_date?: string;
 };
 
 export default function Cupones() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
-  const [coupons] = useState<Coupon[]>([
-    {
-      id: 1,
-      title: '2x1 en Big Mac',
-      description: 'Comprá una Big Mac y llevate otra gratis',
-      discount: '50% OFF',
-      validUntil: '31/12/2024',
-      image: '🍔',
-    },
-    {
-      id: 2,
-      title: 'McFlurry a mitad de precio',
-      description: 'Disfrutá de tu postre favorito con descuento',
-      discount: '50% OFF',
-      validUntil: '15/12/2024',
-      image: '🍦',
-    },
-    {
-      id: 3,
-      title: 'Combo McNuggets',
-      description: '20 McNuggets + Papas grandes',
-      discount: '30% OFF',
-      validUntil: '20/12/2024',
-      image: '🍗',
-    },
-  ]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadCoupons();
+  }, []);
+
+  const loadCoupons = async () => {
+    try {
+      setLoading(true);
+      console.log('🔍 Cargando cupones...');
+      const response = await fetch(`${API_URL}/coupons/active`);
+      const data = await response.json();
+      console.log('🏷️ Cupones recibidos:', data);
+
+      if (data.success && data.coupons) {
+        setCoupons(data.coupons);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando cupones:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDiscount = (coupon: Coupon) => {
+    if (coupon.discount_type === 'percentage') {
+      return `${coupon.discount_value}% OFF`;
+    }
+    return `$${coupon.discount_value} OFF`;
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Sin vencimiento';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
 
   const getProfileImageUrl = () => {
     if (!user?.profile_image_url) return null;
@@ -58,6 +78,11 @@ export default function Cupones() {
     }
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return `${API_URL.replace('/api', '')}${url}`;
+  };
+
+  const handleCouponPress = (coupon: Coupon) => {
+    console.log('Cupón seleccionado:', coupon.title);
+    // Aquí puedes agregar la lógica para usar el cupón
   };
 
   return (
@@ -85,14 +110,14 @@ export default function Cupones() {
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.profileContainer}
             onPress={() => router.push('/profile')}
           >
             {user?.profile_image_url ? (
-              <Image 
-                source={{ uri: getProfileImageUrl()! }} 
-                style={styles.profileImage} 
+              <Image
+                source={{ uri: getProfileImageUrl()! }}
+                style={styles.profileImage}
               />
             ) : (
               <View style={styles.profileImagePlaceholder}>
@@ -113,41 +138,72 @@ export default function Cupones() {
             Aprovechá estas ofertas exclusivas
           </Text>
 
-          <View style={styles.couponsContainer}>
-            {coupons.map((coupon) => (
-              <TouchableOpacity
-                key={coupon.id}
-                style={styles.couponCard}
-                onPress={() => {
-                  console.log('Cupón seleccionado:', coupon.title);
-                }}
-              >
-                <View style={styles.couponHeader}>
-                  <View style={styles.couponIcon}>
-                    <Text style={styles.couponIconText}>{coupon.image}</Text>
-                  </View>
-                  <View style={styles.discountBadge}>
-                    <Text style={styles.discountBadgeText}>{coupon.discount}</Text>
-                  </View>
-                </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Cargando cupones...</Text>
+            </View>
+          ) : coupons.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No hay cupones disponibles</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+            >
+              {coupons.map((coupon) => (
+                <View key={coupon.id} style={styles.couponCard}>
+                  <TouchableOpacity
+                    style={styles.cardContent}
+                    onPress={() => handleCouponPress(coupon)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.imageContainer}>
+                      {coupon.image_url ? (
+                        <Image
+                          source={{ uri: coupon.image_url }}
+                          style={styles.couponImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.couponIcon}>
+                          <Text style={styles.couponIconText}>🏷️</Text>
+                        </View>
+                      )}
+                      <View style={styles.discountBadge}>
+                        <Text style={styles.discountBadgeText}>{formatDiscount(coupon)}</Text>
+                      </View>
+                    </View>
 
-                <View style={styles.couponBody}>
-                  <Text style={styles.couponTitle}>{coupon.title}</Text>
-                  <Text style={styles.couponDescription}>{coupon.description}</Text>
-                  <Text style={styles.couponValidity}>
-                    Válido hasta: {coupon.validUntil}
-                  </Text>
-                </View>
+                    <View style={styles.couponInfo}>
+                      <Text style={styles.couponTitle} numberOfLines={2}>
+                        {coupon.title}
+                      </Text>
+                      {coupon.description && (
+                        <Text style={styles.couponDescription} numberOfLines={2}>
+                          {coupon.description}
+                        </Text>
+                      )}
+                      <View style={styles.validityContainer}>
+                        <Text style={styles.couponCode}>Código: {coupon.code}</Text>
+                        <Text style={styles.couponValidity}>
+                          Válido hasta: {formatDate(coupon.end_date)}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
 
-                <View style={styles.couponFooter}>
-                  <TouchableOpacity style={styles.useButton}>
+                  <TouchableOpacity
+                    style={styles.useButton}
+                    onPress={() => handleCouponPress(coupon)}
+                  >
                     <Text style={styles.useButtonText}>Usar cupón</Text>
                   </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
+              ))}
+            </ScrollView>
+          )}
           {/* Espaciado inferior para tabs */}
           <View style={styles.bottomSpacing} />
         </View>
@@ -257,10 +313,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 24,
   },
-  couponsContainer: {
+  carouselContent: {
+    paddingHorizontal: 0,
+    paddingVertical: 8,
     gap: 16,
   },
   couponCard: {
+    width: 200,
     backgroundColor: '#fff',
     borderRadius: 16,
     overflow: 'hidden',
@@ -269,72 +328,117 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+    flexDirection: 'column',
+    flex: 1,
   },
-  couponHeader: {
+  cardContent: {
+    flex: 1,
+  },
+  imageContainer: {
+    width: '100%',
+    height: 160,
     backgroundColor: '#FFF8E1',
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  couponIcon: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#fff',
-    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+    padding: 16,
+  },
+  couponIcon: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#fff',
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   couponIconText: {
-    fontSize: 32,
+    fontSize: 40,
   },
   discountBadge: {
     backgroundColor: '#DA291C',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    position: 'absolute',
+    top: 12,
+    right: 12,
   },
   discountBadgeText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
   },
-  couponBody: {
-    padding: 16,
+  couponInfo: {
+    padding: 12,
+    flex: 1,
   },
   couponTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#292929',
-    marginBottom: 8,
-  },
-  couponDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+    marginBottom: 6,
     lineHeight: 20,
   },
-  couponValidity: {
+  couponDescription: {
     fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+    lineHeight: 16,
+  },
+  validityContainer: {
+    marginTop: 'auto',
+  },
+  couponValidity: {
+    fontSize: 11,
     color: '#999',
     fontStyle: 'italic',
   },
-  couponFooter: {
-    padding: 16,
-    paddingTop: 0,
-  },
   useButton: {
     backgroundColor: '#FFBC0D',
-    padding: 14,
-    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
+    margin: 12,
+    borderRadius: 8,
+    marginTop: 'auto',
   },
   useButtonText: {
     color: '#292929',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   bottomSpacing: {
     height: 100,
+  },
+  couponImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  couponCode: {
+    fontSize: 11,
+    color: '#DA291C',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
   },
 });
