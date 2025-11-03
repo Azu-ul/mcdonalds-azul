@@ -44,7 +44,7 @@ router.get('/', authenticateToken, async (req, res) => {
         // Calcular totales
         const subtotal = items.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
 
-        // ✅ CAMBIO: Obtener dirección del usuario desde la tabla users
+        // ✅ Obtener dirección del usuario desde la tabla users
         const [userRows] = await pool.execute(
             `SELECT address, latitude, longitude FROM users WHERE id = ?`,
             [req.user.id]
@@ -54,20 +54,9 @@ router.get('/', authenticateToken, async (req, res) => {
 
         let deliveryInfo = null;
 
-        // Si el usuario tiene dirección guardada
-        if (userRows.length > 0 && userRows[0].address) {
-            deliveryInfo = {
-                type: 'delivery',
-                label: 'Mi dirección',
-                address: userRows[0].address,
-                latitude: userRows[0].latitude ? parseFloat(userRows[0].latitude) : null,
-                longitude: userRows[0].longitude ? parseFloat(userRows[0].longitude) : null
-            };
-            console.log('Using user address:', deliveryInfo);
-        }
-        // Si no tiene dirección pero el carrito tiene restaurant_id (pickup)
-        else if (cart.restaurant_id) {
-            console.log('No user address, checking restaurant_id:', cart.restaurant_id);
+        // ✅ PRIORIDAD 1: Si el carrito tiene restaurant_id (pickup)
+        if (cart.restaurant_id) {
+            console.log('Carrito tiene restaurant_id:', cart.restaurant_id);
             const [restaurantRows] = await pool.execute(
                 `SELECT id, name, address, latitude, longitude FROM restaurants WHERE id = ?`,
                 [cart.restaurant_id]
@@ -80,11 +69,22 @@ router.get('/', authenticateToken, async (req, res) => {
                     type: 'pickup',
                     label: r.name,
                     address: r.address,
-                    latitude: parseFloat(r.latitude),
-                    longitude: parseFloat(r.longitude)
+                    latitude: r.latitude ? parseFloat(r.latitude) : null,
+                    longitude: r.longitude ? parseFloat(r.longitude) : null
                 };
-                console.log('Using restaurant:', deliveryInfo);
+                console.log('Usando restaurant para pickup:', deliveryInfo);
             }
+        }
+        // ✅ PRIORIDAD 2: Si el usuario tiene dirección guardada (delivery)
+        else if (userRows.length > 0 && userRows[0].address) {
+            deliveryInfo = {
+                type: 'delivery',
+                label: 'Mi dirección',
+                address: userRows[0].address,
+                latitude: userRows[0].latitude ? parseFloat(userRows[0].latitude) : null,
+                longitude: userRows[0].longitude ? parseFloat(userRows[0].longitude) : null
+            };
+            console.log('Usando dirección de usuario:', deliveryInfo);
         }
 
         console.log('Final delivery info:', deliveryInfo);

@@ -43,8 +43,9 @@ export default function Cart() {
     if (isAuthenticated) {
       loadCart();
       loadRecommendations();
+      loadDeliveryInfo();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const loadCart = async () => {
     try {
@@ -67,6 +68,35 @@ export default function Cart() {
       Alert.alert('Error', 'No se pudo cargar el carrito');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [deliveryInfo, setDeliveryInfo] = useState<{
+    type: string;
+    label: string;
+    address: string;
+  } | null>(null);
+
+  // Agregar después de loadCart()
+  const loadDeliveryInfo = async () => {
+    try {
+      if (user?.selectedRestaurant) {
+        // Es pickup
+        setDeliveryInfo({
+          type: 'pickup',
+          label: user.selectedRestaurant.name,
+          address: user.selectedRestaurant.address
+        });
+      } else if (user?.address) {
+        // Es delivery
+        setDeliveryInfo({
+          type: 'delivery',
+          label: 'Mi dirección',
+          address: user.address
+        });
+      }
+    } catch (error) {
+      console.error('Error loading delivery info:', error);
     }
   };
 
@@ -224,11 +254,15 @@ export default function Cart() {
         >
           <Text style={styles.locationIcon}>📍</Text>
           <View style={styles.locationTextContainer}>
-            <Text style={styles.locationLabel}>Entregar en</Text>
-            <Text style={styles.locationText}>Cambiar restaurante →</Text>
+            <Text style={styles.locationLabel}>
+              {deliveryInfo?.type === 'pickup' ? 'Retirar en' : 'Entregar en'}
+            </Text>
+            <Text style={styles.locationText}>
+              {deliveryInfo?.address || 'Seleccionar dirección'} →
+            </Text>
           </View>
         </TouchableOpacity>
-
+        
         {cartItems.map((item) => (
           <View key={item.id} style={styles.itemCard}>
             <Image

@@ -596,4 +596,41 @@ router.delete('/roles/:role_name', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/profile/orders - Obtener historial de órdenes
+router.get('/orders', authenticateToken, async (req, res) => {
+  try {
+    const [orders] = await pool.execute(
+      `SELECT 
+        o.id, 
+        o.created_at, 
+        o.total, 
+        o.status, 
+        o.order_type,
+        COUNT(oi.id) as items_count
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.user_id = ?
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+      LIMIT 20`,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      orders: orders.map(order => ({
+        ...order,
+        total: parseFloat(order.total),
+        items_count: parseInt(order.items_count)
+      }))
+    });
+  } catch (error) {
+    console.error('Error al obtener órdenes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al cargar el historial'
+    });
+  }
+});
+
 export default router;

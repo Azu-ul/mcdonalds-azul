@@ -72,6 +72,8 @@ export default function Checkout() {
   }
 
   const isPickup = delivery?.type === 'pickup';
+  
+  // ✅ Generar URL del mapa SOLO si hay coordenadas válidas
   const mapUrl = delivery?.latitude && delivery?.longitude
     ? `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${delivery.latitude},${delivery.longitude}&zoom=15`
     : null;
@@ -87,8 +89,8 @@ export default function Checkout() {
       </View>
 
       <ScrollView style={styles.scrollView}>
-        {/* Mapa */}
-        {mapUrl && (
+        {/* Mapa - SOLO si hay coordenadas */}
+        {mapUrl ? (
           <View style={styles.mapContainer}>
             <iframe
               width="100%"
@@ -98,9 +100,18 @@ export default function Checkout() {
               src={mapUrl}
             />
           </View>
+        ) : (
+          <View style={styles.noMapContainer}>
+            <Text style={styles.noMapIcon}>{isPickup ? '🏪' : '📍'}</Text>
+            <Text style={styles.noMapText}>
+              {isPickup 
+                ? 'Retirarás tu pedido en el local' 
+                : 'Ubicación sin coordenadas disponibles'}
+            </Text>
+          </View>
         )}
 
-        {/* Dirección */}
+        {/* Dirección/Restaurante */}
         {delivery && (
           <TouchableOpacity
             style={styles.deliverySection}
@@ -111,10 +122,15 @@ export default function Checkout() {
               <Text style={styles.deliveryLabel}>
                 {isPickup ? 'Retirar en' : 'Enviar a'}
               </Text>
-              <Text style={styles.deliveryAddress}>{delivery.label || 'Mi dirección'}</Text>
+              <Text style={styles.deliveryAddress}>
+                {delivery.label || (isPickup ? 'Restaurante' : 'Mi dirección')}
+              </Text>
               <Text style={styles.deliverySubtext}>{delivery.address}</Text>
             </View>
-            <Text style={styles.chevron}>›</Text>
+            <View style={styles.changeContainer}>
+              <Text style={styles.changeText}>Cambiar</Text>
+              <Text style={styles.chevron}>›</Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -240,7 +256,7 @@ export default function Checkout() {
   );
 }
 
-// Estilos sin cambios...
+// Agregar estos estilos nuevos
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -261,6 +277,25 @@ const styles = StyleSheet.create({
     height: 250,
     backgroundColor: '#E0E0E0',
   },
+  // ✅ NUEVOS ESTILOS para cuando no hay mapa
+  noMapContainer: {
+    height: 200,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  noMapIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  noMapText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
   deliverySection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -274,7 +309,18 @@ const styles = StyleSheet.create({
   deliveryLabel: { fontSize: 12, color: '#666', marginBottom: 2 },
   deliveryAddress: { fontSize: 16, fontWeight: '600', color: '#292929', marginBottom: 4 },
   deliverySubtext: { fontSize: 13, color: '#666', lineHeight: 18 },
-  chevron: { fontSize: 24, color: '#666' },
+  // ✅ NUEVOS ESTILOS para el botón de cambiar
+  changeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  changeText: {
+    fontSize: 14,
+    color: '#FFBC0D',
+    fontWeight: '600',
+  },
+  chevron: { fontSize: 20, color: '#FFBC0D' },
   section: {
     backgroundColor: '#fff',
     padding: 16,

@@ -107,30 +107,69 @@ export default function Restaurants() {
     });
   }, [savedAddresses, isAuthenticated]);
 
+  // Función para calcular distancia entre dos coordenadas (fórmula de Haversine)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Actualizar loadRestaurants para calcular distancias
   const loadRestaurants = async () => {
     try {
       setLoading(true);
-      // Mock data - reemplazar con API real
-      const mockRestaurants: Restaurant[] = [
-        {
-          id: 1,
-          name: "McDonald's Azul Centro",
-          address: "Av. Colón 123, Azul, Buenos Aires",
-          distance: 1.2,
-          isOpen: true,
-        },
-        {
-          id: 2,
-          name: "McDonald's Azul Norte",
-          address: "Av. San Martín 456, Azul, Buenos Aires",
-          distance: 3.5,
-          isOpen: true,
-        },
-      ];
-      setRestaurants(mockRestaurants);
-      setFilteredRestaurants(mockRestaurants);
+      const response = await api.get('/restaurants');
+
+      if (response.data.success && response.data.restaurants) {
+        // Obtener ubicación del usuario si está disponible
+        let userLat: number | null = null;
+        let userLng: number | null = null;
+
+        if (user?.latitude && user?.longitude) {
+          userLat = user.latitude;
+          userLng = user.longitude;
+        } else if (currentLocation) {
+          userLat = currentLocation.lat;
+          userLng = currentLocation.lng;
+        }
+
+        const restaurantsData: Restaurant[] = response.data.restaurants.map((r: any) => {
+          let distance = 0;
+
+          // Calcular distancia si tenemos coordenadas del usuario y del restaurante
+          if (userLat && userLng && r.latitude && r.longitude) {
+            distance = calculateDistance(userLat, userLng, r.latitude, r.longitude);
+          }
+
+          return {
+            id: r.id,
+            name: r.name,
+            address: r.address,
+            distance: distance,
+            isOpen: r.is_open === 1,
+          };
+        });
+
+        // Ordenar por distancia (más cercanos primero)
+        restaurantsData.sort((a, b) => a.distance - b.distance);
+
+        setRestaurants(restaurantsData);
+        setFilteredRestaurants(restaurantsData);
+      } else {
+        setRestaurants([]);
+        setFilteredRestaurants([]);
+      }
     } catch (error) {
       console.error('Error loading restaurants:', error);
+      Alert.alert('Error', 'No se pudieron cargar los restaurantes');
+      setRestaurants([]);
+      setFilteredRestaurants([]);
     } finally {
       setLoading(false);
     }
@@ -146,17 +185,39 @@ export default function Restaurants() {
         console.log('Respuesta API COMPLETA:', JSON.stringify(response.data, null, 2));
 
         if (response.data.success && response.data.addresses) {
+          // Obtener ubicación del usuario si está disponible
+          let userLat: number | null = null;
+          let userLng: number | null = null;
+
+          if (user?.latitude && user?.longitude) {
+            userLat = user.latitude;
+            userLng = user.longitude;
+          } else if (currentLocation) {
+            userLat = currentLocation.lat;
+            userLng = currentLocation.lng;
+          }
+
           const addresses = response.data.addresses
-            .filter((addr: any) => addr.latitude != null && addr.longitude != null) // Filtrar direcciones sin coordenadas
-            .map((addr: any) => ({
-              id: addr.id.toString(),
-              label: addr.label || 'Mi dirección',
-              address: addr.address,
-              latitude: addr.latitude,
-              longitude: addr.longitude,
-              distance: 0,
-            }));
-          console.log('Direcciones procesadas:', addresses);
+            .filter((addr: any) => addr.latitude != null && addr.longitude != null)
+            .map((addr: any) => {
+              let distance = 0;
+
+              // Calcular distancia si tenemos coordenadas del usuario
+              if (userLat && userLng && addr.latitude && addr.longitude) {
+                distance = calculateDistance(userLat, userLng, addr.latitude, addr.longitude);
+              }
+
+              return {
+                id: addr.id.toString(),
+                label: addr.label || 'Mi dirección',
+                address: addr.address,
+                latitude: addr.latitude,
+                longitude: addr.longitude,
+                distance: distance,
+              };
+            });
+
+          console.log('Direcciones procesadas con distancias:', addresses);
           setSavedAddresses(addresses);
           setFilteredAddresses(addresses);
         } else {
@@ -213,7 +274,22 @@ export default function Restaurants() {
     }
 
     try {
-      // Actualizar la dirección del usuario con el restaurante y marcar como restaurante
+      // Si el usuario está autenticado, actualizar el carrito con el restaurant_id
+      if (isAuthenticated) {
+        // Verificar si existe un carrito
+        const cartResponse = await api.get('/cart');
+
+        if (cartResponse.data.success) {
+          const cartId = cartResponse.data.cart.id;
+
+          // Actualizar el restaurant_id del carrito
+          await api.put(`/cart/${cartId}/restaurant`, {
+            restaurant_id: restaurant.id
+          });
+        }
+      }
+
+      // Actualizar la dirección del usuario con el restaurante
       await updateUser({
         address: restaurant.name,
         selectedRestaurant: {
@@ -223,12 +299,13 @@ export default function Restaurants() {
           latitude: null,
           longitude: null
         },
-        locationType: 'pickup' // Ahora sí está en el tipo User
+        locationType: 'pickup'
       });
 
-      // Guardar en AsyncStorage como restaurante seleccionado
+      // Guardar en AsyncStorage
       await AsyncStorage.setItem('selected_address', restaurant.name);
       await AsyncStorage.setItem('selected_restaurant', 'true');
+      await AsyncStorage.setItem('restaurant_id', restaurant.id.toString());
       await AsyncStorage.setItem('restaurant_name', restaurant.name);
       await AsyncStorage.setItem('restaurant_address', restaurant.address);
       await AsyncStorage.setItem('is_restaurant_pickup', 'true');
@@ -237,6 +314,7 @@ export default function Restaurants() {
 
       router.replace('/');
     } catch (error) {
+      console.error('Error selecting restaurant:', error);
       Alert.alert('Error', 'No se pudo seleccionar el restaurante');
     }
   };

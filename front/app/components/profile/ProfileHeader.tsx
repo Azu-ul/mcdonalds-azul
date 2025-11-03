@@ -9,9 +9,9 @@ export default function ProfileHeader({ onBack }: ProfileHeaderProps) {
   return (
     <View style={styles.header}>
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>←</Text>
+        <Text style={styles.backIcon}>←</Text>
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>Mi Cuenta</Text>
+      <Text style={styles.title}>Mi Cuenta</Text>
       <View style={styles.placeholder} />
     </View>
   );
@@ -19,31 +19,27 @@ export default function ProfileHeader({ onBack }: ProfileHeaderProps) {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: '#DA291C',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    alignSelf: 'stretch',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 5,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    width: '100%',
   },
   backButton: {
     padding: 8,
   },
-  backButtonText: {
-    color: '#fff',
+  backIcon: {
     fontSize: 24,
-    fontWeight: 'bold',
+    color: '#292929',
   },
-  headerTitle: {
+  title: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '700',
+    color: '#292929',
   },
   placeholder: {
     width: 40,

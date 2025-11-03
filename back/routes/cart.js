@@ -465,4 +465,42 @@ router.delete('/coupon', authenticateToken, async (req, res) => {
   }
 });
 
+// PUT /api/cart/:id/restaurant - Actualizar restaurant_id del carrito
+router.put('/:id/restaurant', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { restaurant_id } = req.body;
+
+    // Verificar que el carrito pertenece al usuario
+    const [carts] = await pool.query(
+      'SELECT id FROM carts WHERE id = ? AND user_id = ?',
+      [id, req.user.id]
+    );
+
+    if (carts.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Carrito no encontrado'
+      });
+    }
+
+    // Actualizar restaurant_id
+    await pool.query(
+      'UPDATE carts SET restaurant_id = ? WHERE id = ?',
+      [restaurant_id, id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Restaurante actualizado en el carrito'
+    });
+  } catch (error) {
+    console.error('Error updating cart restaurant:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar el restaurante'
+    });
+  }
+});
+
 export default router;

@@ -20,52 +20,51 @@ export default function AddressCard({
   loadingUpdate,
   saved
 }: AddressCardProps) {
-  // Asegurarse de que el valor siempre sea una string, nunca undefined
   const controlledAddress = address || '';
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>📍 Dirección</Text>
-
-      <View style={styles.inputGroup}>
-        <TextInput
-          style={styles.input}
-          value={controlledAddress}
-          onChangeText={onAddressChange}
-          placeholder="Calle, número, ciudad..."
-          multiline
-          placeholderTextColor="#999"
-        />
+      <View style={styles.header}>
+        <Text style={styles.icon}>📍</Text>
+        <Text style={styles.title}>Dirección</Text>
       </View>
+
+      <TextInput
+        style={styles.input}
+        value={controlledAddress}
+        onChangeText={onAddressChange}
+        placeholder="Calle, número, ciudad..."
+        multiline
+        placeholderTextColor="#999"
+      />
 
       <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.actionButtonHalf,
-            saved && styles.saveButtonSuccess
-          ]}
+          style={[styles.button, styles.buttonPrimary, saved && styles.buttonSuccess]}
           onPress={onSave}
           disabled={loadingUpdate || saved}
         >
           {loadingUpdate ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color="#292929" size="small" />
           ) : (
-            <Text style={styles.actionButtonText}>
-              {saved ? '✓ ¡Guardado!' : '💾 Guardar'}
+            <Text style={styles.buttonText}>
+              {saved ? '✓ Guardado' : 'Guardar'}
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionButton, styles.actionButtonHalf, styles.actionButtonGPS]}
+          style={[styles.button, styles.buttonSecondary]}
           onPress={onGetLocation}
           disabled={loadingLocation}
         >
           {loadingLocation ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color="#666" size="small" />
           ) : (
-            <Text style={styles.actionButtonText}>📍 Mi ubicación</Text>
+            <>
+              <Text style={styles.buttonIcon}>📍</Text>
+              <Text style={styles.buttonTextSecondary}>Ubicación actual</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
@@ -76,65 +75,75 @@ export default function AddressCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 8,
+    padding: 16,
     width: '90%',
-    maxWidth: 480,
-    padding: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    maxWidth: 420,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  cardTitle: {
+  icon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#292929',
-    marginBottom: 16,
-  },
-  inputGroup: {
-    marginBottom: 12,
   },
   input: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#E0E0E0',
-    padding: 12,
     borderRadius: 8,
+    padding: 12,
     fontSize: 15,
     backgroundColor: '#FAFAFA',
     minHeight: 80,
     textAlignVertical: 'top',
     color: '#292929',
+    marginBottom: 12,
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
+    gap: 8,
   },
-  actionButton: {
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionButtonHalf: {
+  button: {
     flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  buttonPrimary: {
     backgroundColor: '#FFBC0D',
   },
-  actionButtonGPS: {
-    backgroundColor: '#27AE60',
+  buttonSuccess: {
+    backgroundColor: '#4CAF50',
   },
-  saveButtonSuccess: {
-    backgroundColor: '#27AE60',
+  buttonSecondary: {
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  actionButtonText: {
-    color: '#fff',
+  buttonText: {
+    color: '#292929',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
+  },
+  buttonIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  buttonTextSecondary: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

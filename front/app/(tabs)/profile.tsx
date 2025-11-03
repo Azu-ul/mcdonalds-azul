@@ -21,6 +21,7 @@ import ProfileImageSection from '../components/profile/ProfileImageSection';
 import PersonalInfoCard from '../components/profile/PersonalInfoCard';
 import AddressCard from '../components/profile/AddressCard';
 import DocumentCard from '../components/profile/DocumentCard';
+import OrderHistoryCard from '../components/profile/OrderHistoryCard';
 
 type User = {
   id: number;
@@ -70,6 +71,8 @@ export default function Profile() {
   const { updateUser, logout } = useAuth();
 
   // Estados
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingStates, setLoadingStates] = useState({
@@ -144,11 +147,32 @@ export default function Profile() {
     return () => { if (interval) clearInterval(interval); };
   }, [modals.deleteAccount, deleteCountdown]);
 
+  const loadOrders = async () => {
+    try {
+      setLoadingOrders(true);
+      const token = await AsyncStorage.getItem('token');
+      const res = await api.get('/profile/orders', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setOrders(res.data.orders || []);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+  
   useFocusEffect(
     React.useCallback(() => {
       loadUserProfile();
+      loadOrders();
     }, [])
   );
+
+  const handleViewOrder = (orderId: number) => {
+    Alert.alert('Pedido', `Ver detalles del pedido #${orderId}`);
+    // Aquí podrías navegar a una pantalla de detalle: router.push(`/orders/${orderId}`)
+  };
 
   const loadUserProfile = async () => {
     try {
@@ -577,6 +601,8 @@ export default function Profile() {
     }
   };
 
+
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <ProfileHeader onBack={() => router.push('/')} />
@@ -623,6 +649,12 @@ export default function Profile() {
         onDelete={() => updateModal('deleteDocument', true)}
         loading={loadingStates.document}
         deleting={loadingStates.deletingDocument}
+      />
+
+      <OrderHistoryCard
+        orders={orders}
+        loading={loadingOrders}
+        onViewOrder={handleViewOrder}
       />
 
       <TouchableOpacity style={styles.logoutButton} onPress={() => updateModal('logout', true)}>
@@ -687,42 +719,52 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  scrollContent: { flexGrow: 1, alignItems: 'center', paddingBottom: 20 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5'
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5'
+  },
   logoutButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    margin: 12,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    width: '90%',
+    maxWidth: 420,
+  },
+  logoutButtonText: {
+    color: '#292929',
+    fontSize: 15,
+    fontWeight: '600'
+  },
+  deleteButton: {
     backgroundColor: '#fff',
     borderWidth: 1.5,
     borderColor: '#DA291C',
     margin: 12,
-    marginBottom: 8,
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    width: '90%',
-    maxWidth: 420,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  logoutButtonText: { color: '#DA291C', fontSize: 15, fontWeight: '600' },
-  deleteButton: {
-    backgroundColor: '#DA291C',
-    margin: 12,
     marginTop: 0,
-    padding: 14,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 8,
     alignItems: 'center',
     width: '90%',
     maxWidth: 420,
-    shadowColor: '#DA291C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  deleteButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-
+  deleteButtonText: {
+    color: '#DA291C',
+    fontSize: 15,
+    fontWeight: '600'
+  },
 });
