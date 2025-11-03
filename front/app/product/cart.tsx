@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useCoupon } from '../context/CouponContext';
 import api from '../../config/api';
 
 type CartItem = {
@@ -26,6 +27,9 @@ export default function Cart() {
   const { user, isAuthenticated } = useAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { selectedCoupon, calculateDiscount, setSelectedCoupon } = useCoupon();
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [discount, setDiscount] = useState(0);
 
   useEffect(() => {
     // AGREGAR este check para evitar navegar antes del mount
@@ -47,6 +51,17 @@ export default function Cart() {
       setLoading(true);
       const res = await api.get('/cart');
       setCartItems(res.data.cart?.items || []);
+
+      // Cargar cupón aplicado si existe
+      if (res.data.cart?.coupon_id) {
+        setAppliedCoupon({
+          id: res.data.cart.coupon_id,
+          title: res.data.cart.coupon_title,
+          discount_type: res.data.cart.discount_type,
+          discount_value: res.data.cart.discount_value
+        });
+        setDiscount(res.data.cart.discount_amount || 0);
+      }
     } catch (error) {
       console.error('Error loading cart:', error);
       Alert.alert('Error', 'No se pudo cargar el carrito');
@@ -127,8 +142,12 @@ export default function Cart() {
     }
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return cartItems.reduce((sum, item) => sum + item.total_price, 0);
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal() - discount;
   };
 
   const handleContinueShopping = () => {
@@ -162,6 +181,29 @@ export default function Cart() {
       </View>
     );
   }
+
+  const applyCoupon = async (couponId: number) => {
+    try {
+      const res = await api.post('/cart/apply-coupon', { coupon_id: couponId });
+      if (res.data.success) {
+        await loadCart(); // Recargar carrito con cupón aplicado
+        Alert.alert('¡Cupón aplicado!', res.data.message);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.message || 'No se pudo aplicar el cupón');
+    }
+  };
+
+  const removeCoupon = async () => {
+    try {
+      await api.delete('/cart/coupon');
+      setAppliedCoupon(null);
+      setDiscount(0);
+      Alert.alert('Cupón removido');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo remover el cupón');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -244,23 +286,52 @@ export default function Cart() {
           >
             <Text style={styles.promoIcon}>🏷️</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.promoText}>Descuentos y promociones</Text>
-              <Text style={styles.promoSubtext}>
-                {coupons.length} cupon{coupons.length !== 1 ? 'es' : ''} disponible{coupons.length !== 1 ? 's' : ''}
+              <Text style={styles.promoText}>
+                {appliedCoupon ? `Cupón aplicado: ${appliedCoupon.title}` : 'Descuentos y promociones'}
               </Text>
+              {!appliedCoupon && (
+                <Text style={styles.promoSubtext}>
+                  {coupons.length} cupón{coupons.length !== 1 ? 'es' : ''} disponible{coupons.length !== 1 ? 's' : ''}
+                </Text>
+              )}
             </View>
-            <Text style={styles.promoArrow}>→</Text>
+            {appliedCoupon && (
+              <TouchableOpacity onPress={removeCoupon} style={{ padding: 4 }}>
+                <Text style={styles.removeCouponText}>✕</Text>
+              </TouchableOpacity>
+            )}
+            {!appliedCoupon && <Text style={styles.promoArrow}>→</Text>}
           </TouchableOpacity>
         )}
       </ScrollView>
 
       <View style={styles.footer}>
         <View style={styles.totalSection}>
+          <Text style={styles.subtotalLabel}>Subtotal</Text>
+          <Text style={styles.subtotalAmount}>
+            $ {calculateSubtotal().toLocaleString('es-AR')}
+          </Text>
+        </View>
+
+        {appliedCoupon && discount > 0 && (
+          <>
+            <View style={styles.discountSection}>
+              <Text style={styles.discountLabel}>Descuento ({appliedCoupon.title})</Text>
+              <Text style={styles.discountAmount}>
+                - $ {discount.toLocaleString('es-AR')}
+              </Text>
+            </View>
+            <View style={styles.divider} />
+          </>
+        )}
+
+        <View style={styles.totalSection}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalAmount}>
             $ {calculateTotal().toLocaleString('es-AR')}
           </Text>
         </View>
+
         <View style={styles.footerButtons}>
           <TouchableOpacity
             style={styles.continueShoppingButton}
@@ -274,7 +345,6 @@ export default function Cart() {
         </View>
       </View>
     </View>
-
   );
 }
 
@@ -405,4 +475,32 @@ const styles = StyleSheet.create({
   quantityTextDisabled: {
     color: '#999',
   },
+  subtotalLabel: { fontSize: 16, color: '#666' },
+  subtotalAmount: { fontSize: 16, color: '#666' },
+  couponSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  couponInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  couponLabel: { fontSize: 14, color: '#27AE60', fontWeight: '600' },
+  removeCoupon: { fontSize: 16, color: '#666', padding: 4 },
+  discountAmount: { fontSize: 16, color: '#27AE60', fontWeight: '600' },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 8,
+  },
+  discountSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 8,
+  },
+  discountLabel: { fontSize: 14, color: '#27AE60', fontWeight: '600' },
+  removeCouponText: { fontSize: 18, color: '#666', fontWeight: '600' },
 });

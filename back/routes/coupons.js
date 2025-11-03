@@ -11,7 +11,7 @@ router.get('/active', async (req, res) => {
   try {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const query = `
-      SELECT id, code, title, description, discount_type, discount_value, 
+      SELECT id, title, description, discount_type, discount_value, 
              min_purchase, max_discount, image_url, start_date, end_date, product_id
       FROM coupons
       WHERE is_active = 1
@@ -31,7 +31,6 @@ router.get('/active', async (req, res) => {
 // ✅ POST /api/coupons → Crear cupón (solo admin)
 router.post('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   const {
-    code,
     title,
     description,
     discount_type,
@@ -42,11 +41,12 @@ router.post('/', authenticateToken, authorizeRole('admin'), async (req, res) => 
     start_date = null,
     end_date = null,
     is_active = true,
-    usage_limit = null
+    usage_limit = null,
+    product_id = null
   } = req.body;
 
   // Validaciones básicas
-  if (!code || !title || !discount_type || !discount_value) {
+  if (!title || !discount_type || !discount_value) {
     return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
   }
 
@@ -57,13 +57,12 @@ router.post('/', authenticateToken, authorizeRole('admin'), async (req, res) => 
   try {
     const query = `
       INSERT INTO coupons (
-        code, title, description, discount_type, discount_value,
+        title, description, discount_type, discount_value,
         min_purchase, max_discount, image_url, start_date, end_date,
-        is_active, usage_limit, used_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        is_active, usage_limit, used_count, product_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     `;
     const values = [
-      code.trim().toUpperCase(),
       title,
       description || null,
       discount_type,
@@ -74,15 +73,13 @@ router.post('/', authenticateToken, authorizeRole('admin'), async (req, res) => 
       start_date,
       end_date,
       is_active ? 1 : 0,
-      usage_limit
+      usage_limit,
+      product_id
     ];
 
     const [result] = await pool.execute(query, values);
     res.status(201).json({ success: true, couponId: result.insertId, message: 'Cupón creado exitosamente.' });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY' && error.message.includes('code')) {
-      return res.status(409).json({ success: false, message: 'El código del cupón ya existe.' });
-    }
     console.error('Error al crear cupón:', error);
     res.status(500).json({ success: false, message: 'Error al crear el cupón.' });
   }
@@ -92,7 +89,6 @@ router.post('/', authenticateToken, authorizeRole('admin'), async (req, res) => 
 router.put('/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
   const { id } = req.params;
   const {
-    code,
     title,
     description,
     discount_type,
@@ -103,19 +99,19 @@ router.put('/:id', authenticateToken, authorizeRole('admin'), async (req, res) =
     start_date,
     end_date,
     is_active,
-    usage_limit
+    usage_limit,
+    product_id
   } = req.body;
 
   try {
     // Verificar que el cupón exista
-    const [existing] = await pool.execute('SELECT id FROM coupons WHERE id = ?', [id]);
+    const [existing] = await pool.execute('SELECT * FROM coupons WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({ success: false, message: 'Cupón no encontrado.' });
     }
 
     const query = `
       UPDATE coupons SET
-        code = ?,
         title = ?,
         description = ?,
         discount_type = ?,
@@ -126,31 +122,29 @@ router.put('/:id', authenticateToken, authorizeRole('admin'), async (req, res) =
         start_date = ?,
         end_date = ?,
         is_active = ?,
-        usage_limit = ?
+        usage_limit = ?,
+        product_id = ?
       WHERE id = ?
     `;
     const values = [
-      code?.trim().toUpperCase() || existing[0].code,
       title || existing[0].title,
-      description,
+      description ?? existing[0].description,
       discount_type || existing[0].discount_type,
-      discount_value || existing[0].discount_value,
+      discount_value ?? existing[0].discount_value,
       min_purchase ?? existing[0].min_purchase,
       max_discount ?? existing[0].max_discount,
       image_url ?? existing[0].image_url,
       start_date ?? existing[0].start_date,
       end_date ?? existing[0].end_date,
-      is_active ? 1 : 0,
+      is_active !== undefined ? (is_active ? 1 : 0) : existing[0].is_active,
       usage_limit ?? existing[0].usage_limit,
+      product_id ?? existing[0].product_id,
       id
     ];
 
     await pool.execute(query, values);
     res.json({ success: true, message: 'Cupón actualizado correctamente.' });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY' && error.message.includes('code')) {
-      return res.status(409).json({ success: false, message: 'El código del cupón ya existe.' });
-    }
     console.error('Error al actualizar cupón:', error);
     res.status(500).json({ success: false, message: 'Error al actualizar el cupón.' });
   }
@@ -174,9 +168,9 @@ router.delete('/:id', authenticateToken, authorizeRole('admin'), async (req, res
 router.get('/', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const [coupons] = await pool.execute(`
-      SELECT id, code, title, description, discount_type, discount_value,
+      SELECT id, title, description, discount_type, discount_value,
              min_purchase, max_discount, image_url, start_date, end_date,
-             is_active, usage_limit, used_count, created_at
+             is_active, usage_limit, used_count, product_id, created_at
       FROM coupons
       ORDER BY created_at DESC
     `);

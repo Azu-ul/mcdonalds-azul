@@ -6,14 +6,16 @@ import {
   ScrollView,
   StyleSheet,
   Image,
+  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useCoupon } from '../context/CouponContext';
 import { API_URL } from '../../config/api';
+import api from '../../config/api';
 
 type Coupon = {
   id: number;
-  code: string;
   title: string;
   description: string;
   discount_type: 'percentage' | 'fixed';
@@ -23,6 +25,7 @@ type Coupon = {
   image_url?: string;
   start_date?: string;
   end_date?: string;
+  product_id?: number;
 };
 
 export default function Cupones() {
@@ -30,6 +33,7 @@ export default function Cupones() {
   const { user, isAuthenticated } = useAuth();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
+  const { setSelectedCoupon } = useCoupon();
 
   useEffect(() => {
     loadCoupons();
@@ -80,9 +84,34 @@ export default function Cupones() {
     return `${API_URL.replace('/api', '')}${url}`;
   };
 
-  const handleCouponPress = (coupon: Coupon) => {
-    console.log('Cupón seleccionado:', coupon.title);
-    // Aquí puedes agregar la lógica para usar el cupón
+  const handleCouponPress = async (coupon: Coupon) => {
+    try {
+      // Si el cupón es para un producto específico
+      if (coupon.product_id) {
+        // Guardar el cupón en el contexto
+        setSelectedCoupon(coupon);
+
+        // Navegar al producto
+        router.push(`/product/${coupon.product_id}`);
+      } else {
+        // Si es cupón general, aplicar al carrito
+        const response = await api.post('/cart/apply-coupon', {
+          coupon_id: coupon.id
+        });
+
+        if (response.data.success) {
+          Alert.alert('¡Cupón aplicado!', response.data.message, [
+            { text: 'Ver carrito', onPress: () => router.push('/cart') }
+          ]);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error aplicando cupón:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'No se pudo aplicar el cupón'
+      );
+    }
   };
 
   return (
@@ -186,7 +215,6 @@ export default function Cupones() {
                         </Text>
                       )}
                       <View style={styles.validityContainer}>
-                        <Text style={styles.couponCode}>Código: {coupon.code}</Text>
                         <Text style={styles.couponValidity}>
                           Válido hasta: {formatDate(coupon.end_date)}
                         </Text>
@@ -418,12 +446,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'absolute',
-  },
-  couponCode: {
-    fontSize: 11,
-    color: '#DA291C',
-    fontWeight: 'bold',
-    marginBottom: 4,
   },
   loadingContainer: {
     padding: 40,

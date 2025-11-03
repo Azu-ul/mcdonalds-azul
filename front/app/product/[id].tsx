@@ -18,6 +18,7 @@ import SelectionModal from '../components/SelectionModal';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import api, { API_URL } from '../../config/api';
+import { useCoupon } from '../context/CouponContext';
 
 type Ingredient = {
     id: number;
@@ -81,6 +82,7 @@ export default function ProductDetail() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+
     // Estados de selección
     const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
     const [selectedSide, setSelectedSide] = useState<SideOption | null>(null);
@@ -89,9 +91,11 @@ export default function ProductDetail() {
     const [condiments, setCondiments] = useState<Record<number, boolean>>({});
     const [quantity, setQuantity] = useState(1);
 
+
     // Modales
     const [modalType, setModalType] = useState<ModalType>(null);
     const { refetchCart } = useCart();
+    const { selectedCoupon, setSelectedCoupon, calculateDiscount } = useCoupon();
 
     const getIngredientsPreview = () => {
         if (!product?.ingredients) return 'Personalizar';
@@ -175,36 +179,38 @@ export default function ProductDetail() {
     }, [id]);
 
     const calculateTotalPrice = () => {
-        if (!product) return 0;
+        if (!product) return { subtotal: 0, total: 0, discount: 0 };
 
-        let total = product.base_price;
+        let subtotal = product.base_price;
 
-        // Agregar modificador de tamaño
         if (selectedSize) {
-            total += selectedSize.price_modifier;
+            subtotal += selectedSize.price_modifier;
         }
 
-        // Agregar precio de acompañamiento
         if (selectedSide) {
-            total += selectedSide.extra_price;
+            subtotal += selectedSide.extra_price;
         }
 
-        // Agregar precio de bebida
         if (selectedDrink) {
-            total += selectedDrink.extra_price;
+            subtotal += selectedDrink.extra_price;
         }
 
-        // Agregar extras de ingredientes
         if (product.ingredients) {
             product.ingredients.forEach((ing: Ingredient) => {
                 const qty = ingredients[ing.id] || 0;
                 if (qty > 1) {
-                    total += ing.extra_price * (qty - 1);
+                    subtotal += ing.extra_price * (qty - 1);
                 }
             });
         }
 
-        return total * quantity;
+        subtotal = subtotal * quantity;
+
+        // Aplicar descuento de cupón si existe
+        const discount = calculateDiscount(subtotal);
+        const total = subtotal - discount;
+
+        return { subtotal, total, discount };
     };
 
     const isFormValid = () => {
@@ -297,7 +303,7 @@ export default function ProductDetail() {
         );
     }
 
-    const totalPrice = calculateTotalPrice();
+    const { subtotal, total, discount } = calculateTotalPrice();
 
     return (
         <View style={styles.container}>
@@ -319,6 +325,20 @@ export default function ProductDetail() {
 
                 {/* Nombre y precio */}
                 <View style={styles.infoContainer}>
+                    {selectedCoupon && (
+                        <View style={styles.couponBanner}>
+                            <Text style={styles.couponBannerIcon}>🏷️</Text>
+                            <View style={styles.couponBannerContent}>
+                                <Text style={styles.couponBannerTitle}>{selectedCoupon.title}</Text>
+                                <Text style={styles.couponBannerText}>
+                                    Descuento de ${discount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} aplicado
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setSelectedCoupon(null)}>
+                                <Text style={styles.couponBannerClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                     <Text style={styles.productName}>{product.name}</Text>
                     <Text style={styles.productPrice}>
                         $ {product.base_price.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
@@ -521,9 +541,21 @@ export default function ProductDetail() {
                     ) : (
                         <Text style={styles.addButtonText}>Agregar</Text>
                     )}
-                    <Text style={styles.addButtonPrice}>
-                        $ {totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                    </Text>
+
+                    {discount > 0 ? (
+                        <View style={styles.priceContainer}>
+                            <Text style={styles.originalPrice}>
+                                $ {subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            </Text>
+                            <Text style={styles.discountedPrice}>
+                                $ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            </Text>
+                        </View>
+                    ) : (
+                        <Text style={styles.addButtonPrice}>
+                            $ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </Text>
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -882,5 +914,51 @@ const styles = StyleSheet.create({
         color: '#DA291C',
         fontWeight: '600',
         textDecorationLine: 'underline',
+    },
+    couponBanner: {
+        backgroundColor: '#E8F5E9',
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        marginBottom: 8,
+        borderLeftWidth: 4,
+        borderLeftColor: '#27AE60',
+    },
+    couponBannerIcon: {
+        fontSize: 24,
+        marginRight: 12,
+    },
+    couponBannerContent: {
+        flex: 1,
+    },
+    couponBannerTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#27AE60',
+        marginBottom: 2,
+    },
+    couponBannerText: {
+        fontSize: 12,
+        color: '#666',
+    },
+    couponBannerClose: {
+        fontSize: 20,
+        color: '#666',
+        padding: 4,
+    },
+    priceContainer: {
+        alignItems: 'flex-end',
+        minWidth: 80,
+    },
+    originalPrice: {
+        fontSize: 14,
+        color: '#999',
+        textDecorationLine: 'line-through',
+        fontWeight: '600',
+    },
+    discountedPrice: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#27AE60',
     },
 });

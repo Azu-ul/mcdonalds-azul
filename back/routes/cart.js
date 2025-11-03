@@ -74,9 +74,9 @@ router.get('/', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting cart:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error al obtener el carrito' 
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener el carrito'
     });
   }
 });
@@ -98,9 +98,9 @@ router.post('/items', authenticateToken, async (req, res) => {
     } = req.body;
 
     if (!product_id) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'El producto es requerido' 
+      return res.status(400).json({
+        success: false,
+        message: 'El producto es requerido'
       });
     }
 
@@ -111,9 +111,9 @@ router.post('/items', authenticateToken, async (req, res) => {
     );
 
     if (products.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Producto no encontrado' 
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado'
       });
     }
 
@@ -214,9 +214,9 @@ router.post('/items', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding to cart:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error al agregar al carrito' 
+    res.status(500).json({
+      success: false,
+      message: 'Error al agregar al carrito'
     });
   }
 });
@@ -232,9 +232,9 @@ router.put('/items/:id', authenticateToken, async (req, res) => {
     const { quantity } = req.body;
 
     if (!quantity || quantity < 1) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cantidad inválida' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cantidad inválida'
       });
     }
 
@@ -247,9 +247,9 @@ router.put('/items/:id', authenticateToken, async (req, res) => {
     `, [id, req.user.id]);
 
     if (items.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Item no encontrado' 
+      return res.status(404).json({
+        success: false,
+        message: 'Item no encontrado'
       });
     }
 
@@ -267,9 +267,9 @@ router.put('/items/:id', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating cart item:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error al actualizar item' 
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar item'
     });
   }
 });
@@ -292,9 +292,9 @@ router.delete('/items/:id', authenticateToken, async (req, res) => {
     `, [id, req.user.id]);
 
     if (items.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Item no encontrado' 
+      return res.status(404).json({
+        success: false,
+        message: 'Item no encontrado'
       });
     }
 
@@ -306,9 +306,9 @@ router.delete('/items/:id', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting cart item:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error al eliminar item' 
+    res.status(500).json({
+      success: false,
+      message: 'Error al eliminar item'
     });
   }
 });
@@ -335,10 +335,117 @@ router.delete('/', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error clearing cart:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error al vaciar carrito' 
+    res.status(500).json({
+      success: false,
+      message: 'Error al vaciar carrito'
     });
+  }
+});
+
+// POST /api/cart/apply-coupon
+router.post('/apply-coupon', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const { coupon_id } = req.body;
+
+  try {
+    // Verificar que el cupón existe y está activo
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [coupons] = await pool.execute(
+      `SELECT * FROM coupons 
+       WHERE id = ? AND is_active = 1
+       AND (start_date IS NULL OR start_date <= ?)
+       AND (end_date IS NULL OR end_date >= ?)
+       AND (usage_limit IS NULL OR used_count < usage_limit)`,
+      [coupon_id, now, now]
+    );
+
+    if (coupons.length === 0) {
+      return res.status(404).json({ success: false, message: 'Cupón no válido o expirado' });
+    }
+
+    const coupon = coupons[0];
+
+    // Obtener carrito y calcular total
+    const [carts] = await pool.execute(
+      'SELECT * FROM carts WHERE user_id = ?',
+      [userId]
+    );
+
+    if (carts.length === 0) {
+      return res.status(404).json({ success: false, message: 'Carrito vacío' });
+    }
+
+    const cartId = carts[0].id;
+
+    // Calcular total del carrito
+    const [items] = await pool.execute(
+      'SELECT SUM(total_price) as total FROM cart_items WHERE cart_id = ?',
+      [cartId]
+    );
+
+    const subtotal = items[0].total || 0;
+
+    // Verificar compra mínima
+    if (subtotal < coupon.min_purchase) {
+      return res.status(400).json({
+        success: false,
+        message: `Compra mínima de $${coupon.min_purchase} requerida`
+      });
+    }
+
+    // Calcular descuento
+    let discount = 0;
+    if (coupon.discount_type === 'percentage') {
+      discount = subtotal * (coupon.discount_value / 100);
+      if (coupon.max_discount) {
+        discount = Math.min(discount, coupon.max_discount);
+      }
+    } else {
+      discount = coupon.discount_value;
+    }
+
+    discount = Math.round(discount * 100) / 100;
+
+    // Aplicar cupón al carrito
+    await pool.execute(
+      'UPDATE carts SET coupon_id = ?, discount_amount = ? WHERE id = ?',
+      [coupon_id, discount, cartId]
+    );
+
+    res.json({
+      success: true,
+      message: `Descuento de $${discount} aplicado`,
+      discount
+    });
+  } catch (error) {
+    console.error('Error aplicando cupón:', error);
+    res.status(500).json({ success: false, message: 'Error al aplicar cupón' });
+  }
+});
+
+// DELETE /api/cart/coupon
+router.delete('/coupon', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [carts] = await pool.execute(
+      'SELECT id FROM carts WHERE user_id = ?',
+      [userId]
+    );
+
+    if (carts.length === 0) {
+      return res.status(404).json({ success: false, message: 'Carrito no encontrado' });
+    }
+
+    await pool.execute(
+      'UPDATE carts SET coupon_id = NULL, discount_amount = 0 WHERE id = ?',
+      [carts[0].id]
+    );
+
+    res.json({ success: true, message: 'Cupón removido' });
+  } catch (error) {
+    console.error('Error removiendo cupón:', error);
+    res.status(500).json({ success: false, message: 'Error al remover cupón' });
   }
 });
 
