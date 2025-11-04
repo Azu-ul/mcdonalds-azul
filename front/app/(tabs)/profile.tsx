@@ -15,6 +15,7 @@ import CustomModal from "../components/CustomModal";
 import ImagePickerModal from "../components/ImagePickerModal";
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 // Components
 import ProfileHeader from '../components/profile/ProfileHeader';
@@ -69,7 +70,7 @@ const profileSchema = yup.object({
 export default function Profile() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { updateUser, logout } = useAuth();
+  const { updateUser, logout, isRepartidor } = useAuth();
   const { isAdmin } = useAuth();
 
   // Estados
@@ -634,6 +635,16 @@ export default function Profile() {
         </Link>
       )}
 
+      {isRepartidor && (
+        <TouchableOpacity
+          style={styles.deliveryButton}
+          onPress={() => router.push('/delivery/delivery-home')}
+        >
+          <Ionicons name="bicycle" size={20} color="#FFFFFF" />
+          <Text style={styles.deliveryButtonText}>Panel de Repartidor</Text>
+        </TouchableOpacity>
+      )}
+
       <PersonalInfoCard
         control={control}
         errors={errors}
@@ -802,6 +813,30 @@ const styles = StyleSheet.create({
   },
   adminButtonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  deliveryButton: {
+    backgroundColor: '#FFBC0D',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginVertical: 12,
+    marginHorizontal: 20,
+    gap: 10,
+    shadowColor: '#FFBC0D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#292929',
+  },
+  deliveryButtonText: {
+    color: '#292929',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',

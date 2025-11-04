@@ -15,9 +15,9 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Picker } from '@react-native-picker/picker';
 import Checkbox from 'expo-checkbox';
-import api from '../config/api';
-import CustomModal from './components/CustomModal';
-import { useAuth } from './context/AuthContext';
+import api from '../../config/api';
+import CustomModal from '../components/CustomModal';
+import { useAuth } from '../context/AuthContext';
 
 // Tipos TypeScript
 interface DeliveryFormData {
