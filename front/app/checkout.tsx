@@ -89,28 +89,6 @@ export default function Checkout() {
       </View>
 
       <ScrollView style={styles.scrollView}>
-        {/* Mapa - SOLO si hay coordenadas */}
-        {mapUrl ? (
-          <View style={styles.mapContainer}>
-            <iframe
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              loading="lazy"
-              src={mapUrl}
-            />
-          </View>
-        ) : (
-          <View style={styles.noMapContainer}>
-            <Text style={styles.noMapIcon}>{isPickup ? '🏪' : '📍'}</Text>
-            <Text style={styles.noMapText}>
-              {isPickup 
-                ? 'Retirarás tu pedido en el local' 
-                : 'Ubicación sin coordenadas disponibles'}
-            </Text>
-          </View>
-        )}
-
         {/* Dirección/Restaurante */}
         {delivery && (
           <TouchableOpacity
