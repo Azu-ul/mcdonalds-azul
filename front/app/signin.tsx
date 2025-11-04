@@ -93,7 +93,7 @@ export default function Login() {
       const { token, user } = res.data;
 
       try {
-        const rolesRes = await api.get(`/user/${user.id}/roles`, {
+        const rolesRes = await api.get(`/roles/user/${user.id}/roles`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         user.roles = rolesRes.data.roles || [];
@@ -129,7 +129,7 @@ export default function Login() {
       const res = await api.post('/auth/login', data);
       const { token, user } = res.data;
 
-      const rolesRes = await api.get(`/user/${user.id}/roles`, {
+      const rolesRes = await api.get(`/roles/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       user.roles = rolesRes.data.roles || [];
@@ -194,7 +194,7 @@ export default function Login() {
             }
           }
         }
-      } catch (error) {}
+      } catch (error) { }
     }, 500);
 
     setTimeout(() => {
@@ -297,8 +297,8 @@ export default function Login() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity 
-            style={[styles.socialButton, loading && styles.buttonDisabled]} 
+          <TouchableOpacity
+            style={[styles.socialButton, loading && styles.buttonDisabled]}
             onPress={handleGoogleLogin}
             disabled={loading}
           >

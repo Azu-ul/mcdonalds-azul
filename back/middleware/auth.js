@@ -1,6 +1,24 @@
 import jwt from 'jsonwebtoken';
 import pool from '../db.js';
 
+// Función auxiliar para cargar roles (puede ir en este mismo archivo)
+const loadUserRoles = async (userId) => {
+  try {
+    const [roles] = await pool.query(
+      `SELECT r.name 
+       FROM user_roles ur 
+       JOIN roles r ON ur.role_id = r.id 
+       WHERE ur.user_id = ?`,
+      [userId]
+    );
+    
+    return roles.map(role => role.name);
+  } catch (error) {
+    console.error('Error loading user roles:', error);
+    return [];
+  }
+};
+
 export const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -28,6 +46,10 @@ export const authenticateToken = async (req, res, next) => {
     }
 
     req.user = users[0];
+    
+    // 👇 AGREGAR ESTA LÍNEA - CARGAR ROLES DEL USUARIO
+    req.user.roles = await loadUserRoles(decoded.id);
+    
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

@@ -96,7 +96,7 @@ export default function Register() {
       console.log('📸 URL de foto de perfil:', user.profile_image_url);
 
       try {
-        const rolesRes = await api.get(`/user/${user.id}/roles`, {
+        const rolesRes = await api.get(`/roles/user/${user.id}/roles`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         user.roles = rolesRes.data.roles || [];
@@ -151,7 +151,7 @@ export default function Register() {
       const res = await api.post('/auth/register', payload);
       const { token, user } = res.data;
 
-      const rolesRes = await api.get(`/user/${user.id}/roles`, {
+      const rolesRes = await api.get(`/roles/user/${user.id}/roles`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       user.roles = rolesRes.data.roles || [];

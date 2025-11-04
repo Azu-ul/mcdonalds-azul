@@ -11,9 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mcdonalds.azul"
@@ -25,14 +23,15 @@
       },
       "package": "com.mcdonalds.azul"
     },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "extra": {
       "eas": {
         "projectId": "b8cdbf13-522a-40f5-b348-df650a52a7f2"
       }
     },
     "scheme": "mcdonalds-azul",
-    "plugins": [
-      "expo-secure-store"
-    ]
+    "plugins": ["expo-secure-store"]
   }
 }
