@@ -11,7 +11,7 @@ type User = {
   full_name?: string;
   profile_image_url?: string;
   auth_provider?: string;
-  roles?: string[]; // 👈 array de strings
+  roles?: string[];
   address?: string;
   latitude: number | null;
   longitude: number | null;
@@ -32,8 +32,8 @@ type AuthContextType = {
   isAuthenticated: boolean;
   isGuest: boolean;
   isAdmin: boolean;
-  isJugador: boolean;
-  isSeguidor: boolean;
+  isRepartidor: boolean; // 👈 Cambié isJugador/isSeguidor por isRepartidor
+  isCliente: boolean;
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
@@ -68,7 +68,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const res = await api.get('/auth/me');
       let updatedUser = { ...res.data.user };
 
-      // 👇 Cargar roles y asignar
       const roles = await fetchUserRoles();
       updatedUser.roles = roles;
 
@@ -82,16 +81,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (newToken: string, userData: User) => {
     try {
-      // Configurar token en API
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
 
-      // Obtener roles del usuario autenticado
       const roles = await fetchUserRoles();
-
-      // Combinar userData con roles (por si no venían en userData)
       const completeUser: User = { ...userData, roles };
 
-      // Guardar en estado y AsyncStorage
       setToken(newToken);
       setUser(completeUser);
       setIsGuest(false);
@@ -101,7 +95,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await AsyncStorage.removeItem('guest_mode');
     } catch (error) {
       console.error('Error saving auth:', error);
-      // Limpiar en caso de error
       delete api.defaults.headers.common['Authorization'];
       setToken(null);
       setUser(null);
@@ -123,8 +116,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsGuest(false);
 
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-
-        // Refrescar roles y datos en segundo plano
         refreshUserData().catch(console.warn);
       } else {
         const guestMode = await AsyncStorage.getItem('guest_mode');
@@ -178,8 +169,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isAuthenticated = !!token && !!user && !isGuest;
   const isAdmin = user?.roles?.includes('admin') || false;
-  const isJugador = user?.roles?.includes('jugador') || false;
-  const isSeguidor = user?.roles?.includes('seguidor') || false;
+  const isRepartidor = user?.roles?.includes('repartidor') || false; // 👈 Nuevo
+  const isCliente = user?.roles?.includes('cliente') || false; // 👈 Nuevo
 
   return (
     <AuthContext.Provider
@@ -190,8 +181,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated,
         isGuest,
         isAdmin,
-        isJugador,
-        isSeguidor,
+        isRepartidor,
+        isCliente,
         login,
         logout,
         updateUser,

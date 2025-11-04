@@ -437,6 +437,13 @@ const AdminScreen = () => {
                     />
                 )}
             </View>
+            <TouchableOpacity
+                style={styles.backToProfileButton}
+                onPress={() => router.push('/profile')}
+            >
+                <Ionicons name="person-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.backToProfileButtonText}>Volver a mi perfil</Text>
+            </TouchableOpacity>
 
             {/* Modal Personalizado */}
             <CustomModal
@@ -730,6 +737,35 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
+    },
+    bottomSpacing: {
+        height: 100,
+    },
+    backToProfileButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFBC0D',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderRadius: 12,
+        marginHorizontal: 16,
+        marginTop: 20,
+        marginBottom: 10,
+        gap: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+        borderWidth: 2,
+        borderColor: '#292929',
+    },
+    backToProfileButtonText: {
+        color: '#292929',
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
     },
 });
 

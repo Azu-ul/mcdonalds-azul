@@ -410,7 +410,13 @@ export default function Register() {
               <Text style={styles.link}>¿Ya tenés cuenta? <Text style={styles.linkBold}>Ingresá acá</Text></Text>
             </TouchableOpacity>
           </View>
-
+          {/* Botón para ser repartidor */}
+          <TouchableOpacity
+            style={styles.deliveryButton}
+            onPress={() => router.push('/delivery-register')}
+          >
+            <Text style={styles.deliveryButtonText}>¿Querés ser repartidor?</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.push('/')}
@@ -615,5 +621,20 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666'
+  },
+  deliveryButton: {
+    backgroundColor: '#292929',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
+  },
+  deliveryButtonText: {
+    color: '#FFBC0D',
+    fontSize: 16,
+    fontWeight: 'bold'
   },
 });

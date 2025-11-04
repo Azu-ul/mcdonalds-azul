@@ -5,18 +5,9 @@ import { Tabs, useRouter } from 'expo-router';
 import { View, Text } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
-// 👇 NUEVA FUNCIÓN AUXILIAR
-const isAdmin = (user: any): boolean => {
-  if (!user || !user.roles) return false;
-  return Array.isArray(user.roles)
-    ? user.roles.includes('admin')
-    : (user.roles as string).split(',').includes('admin');
-};
-
 export default function TabsLayout() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const showAdminTab = isAuthenticated && isAdmin(user);
 
   return (
     <Tabs
@@ -71,20 +62,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* 👇 NUEVO TAB DE ADMIN */}
-      {showAdminTab && (
-        <Tabs.Screen
-          name="admin"
-          options={{
-            title: 'Admin',
-            tabBarIcon: ({ focused }) => (
-              <View style={{ alignItems: 'center' }}>
-                <Text style={{ fontSize: 20 }}>🛠️</Text>
-              </View>
-            ),
-          }}
-        />
-      )}
       <Tabs.Screen
         name="profile"
         options={{
@@ -104,6 +81,7 @@ export default function TabsLayout() {
           },
         }}
       />
+      
     </Tabs>
   );
 }

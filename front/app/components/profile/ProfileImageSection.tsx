@@ -88,7 +88,7 @@ export default function ProfileImageSection({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 10,
     paddingVertical: 32,
     paddingHorizontal: 20,
     backgroundColor: '#fff',

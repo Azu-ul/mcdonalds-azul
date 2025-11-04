@@ -14,6 +14,7 @@ import api, { API_URL } from '../../config/api';
 import CustomModal from "../components/CustomModal";
 import ImagePickerModal from "../components/ImagePickerModal";
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'expo-router';
 
 // Components
 import ProfileHeader from '../components/profile/ProfileHeader';
@@ -69,6 +70,7 @@ export default function Profile() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { updateUser, logout } = useAuth();
+  const { isAdmin } = useAuth();
 
   // Estados
   const [orders, setOrders] = useState<any[]>([]);
@@ -624,6 +626,14 @@ export default function Profile() {
         loading={loadingStates.updatingProfile}
       />
 
+      {isAdmin && (
+        <Link href="/admin" asChild>
+          <TouchableOpacity style={styles.adminButton}>
+            <Text style={styles.adminButtonText}>Panel de Administración</Text>
+          </TouchableOpacity>
+        </Link>
+      )}
+
       <PersonalInfoCard
         control={control}
         errors={errors}
@@ -776,5 +786,24 @@ const styles = StyleSheet.create({
     color: '#DA291C',
     fontSize: 16,
     fontWeight: '500'
+  },
+  adminButton: {
+    backgroundColor: '#DA291C',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginHorizontal: 20,
+    shadowColor: '#DA291C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFBC0D',
+  },
+  adminButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
