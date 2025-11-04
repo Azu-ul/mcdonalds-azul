@@ -16,6 +16,7 @@ import categoriesRoutes from './routes/categories.js';
 import cartRoutes from './routes/cart.js';
 import checkoutRoutes from './routes/checkout.js';
 
+
 import './config/passport.js';
 
 dotenv.config();

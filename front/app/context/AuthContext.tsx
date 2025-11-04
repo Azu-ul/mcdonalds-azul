@@ -1,3 +1,5 @@
+// /context/AuthContext.tsx
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../config/api';
@@ -9,7 +11,7 @@ type User = {
   full_name?: string;
   profile_image_url?: string;
   auth_provider?: string;
-  roles?: string[];
+  roles?: string[]; // 👈 array de strings
   address?: string;
   latitude: number | null;
   longitude: number | null;
@@ -32,7 +34,6 @@ type AuthContextType = {
   isAdmin: boolean;
   isJugador: boolean;
   isSeguidor: boolean;
-  onPlayerUpdate?: (callback: (updatedUser: User) => void) => void;
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
@@ -47,25 +48,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
-  const [playerUpdateCallbacks, setPlayerUpdateCallbacks] = useState<((updatedUser: User) => void)[]>([]);
 
   useEffect(() => {
     loadStoredAuth();
   }, []);
 
-  const registerPlayerUpdate = (callback: (updatedUser: User) => void) => {
-    setPlayerUpdateCallbacks(prev => [...prev, callback]);
+  const fetchUserRoles = async (): Promise<string[]> => {
+    try {
+      const rolesRes = await api.get('/profile/roles');
+      return rolesRes.data.roles || [];
+    } catch (error) {
+      console.warn('No se pudieron cargar los roles del usuario');
+      return [];
+    }
   };
 
-  const notifyPlayerUpdate = (updatedUser: User) => {
-    playerUpdateCallbacks.forEach(cb => cb(updatedUser));
+  const refreshUserData = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      let updatedUser = { ...res.data.user };
+
+      // 👇 Cargar roles y asignar
+      const roles = await fetchUserRoles();
+      updatedUser.roles = roles;
+
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      throw error;
+    }
+  };
+
+  const login = async (newToken: string, userData: User) => {
+    try {
+      // Configurar token en API
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+
+      // Obtener roles del usuario autenticado
+      const roles = await fetchUserRoles();
+
+      // Combinar userData con roles (por si no venían en userData)
+      const completeUser: User = { ...userData, roles };
+
+      // Guardar en estado y AsyncStorage
+      setToken(newToken);
+      setUser(completeUser);
+      setIsGuest(false);
+
+      await AsyncStorage.setItem('token', newToken);
+      await AsyncStorage.setItem('user', JSON.stringify(completeUser));
+      await AsyncStorage.removeItem('guest_mode');
+    } catch (error) {
+      console.error('Error saving auth:', error);
+      // Limpiar en caso de error
+      delete api.defaults.headers.common['Authorization'];
+      setToken(null);
+      setUser(null);
+      throw error;
+    }
   };
 
   const loadStoredAuth = async () => {
     try {
       const [storedToken, storedUser] = await Promise.all([
         AsyncStorage.getItem('token'),
-        AsyncStorage.getItem('user')
+        AsyncStorage.getItem('user'),
       ]);
 
       if (storedToken && storedUser) {
@@ -74,13 +122,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(parsedUser);
         setIsGuest(false);
 
-        // Configurar el token en las peticiones API
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
 
-        // Refrescar datos del usuario en segundo plano
-        refreshUserData().catch(err =>
-          console.log('No se pudo refrescar datos del usuario:', err)
-        );
+        // Refrescar roles y datos en segundo plano
+        refreshUserData().catch(console.warn);
       } else {
         const guestMode = await AsyncStorage.getItem('guest_mode');
         if (guestMode === 'true') {
@@ -94,49 +139,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const refreshUserData = async () => {
-    try {
-      const res = await api.get('/auth/me');
-      const updatedUser = res.data.user;
-
-      // CAMBIO AQUÍ: Usar /profile/roles en lugar de /user/${id}/roles
-      const rolesRes = await api.get('/profile/roles');
-      updatedUser.roles = rolesRes.data.roles || [];
-
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-      setUser(updatedUser);
-    } catch (error) {
-      console.error('Error refreshing user data:', error);
-      throw error;
-    }
-  };
-
-  const login = async (newToken: string, userData: User) => {
-    try {
-      await AsyncStorage.setItem('token', newToken);
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      await AsyncStorage.removeItem('guest_mode');
-
-      setToken(newToken);
-      setUser(userData);
-      setIsGuest(false);
-
-      // Configurar el token en las peticiones API
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    } catch (error) {
-      console.error('Error saving auth:', error);
-      throw error;
-    }
-  };
-
   const logout = async () => {
     try {
       await AsyncStorage.multiRemove(['token', 'user', 'guest_mode']);
       setToken(null);
       setUser(null);
       setIsGuest(false);
-
-      // Limpiar el token de las peticiones API
       delete api.defaults.headers.common['Authorization'];
     } catch (error) {
       console.error('Error logging out:', error);
@@ -145,23 +153,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUser = async (data: Partial<User>) => {
     try {
-      // Actualizamos el estado y obtenemos el usuario actualizado
-      let updatedUser: User | undefined;
-      setUser(prev => {
+      setUser((prev) => {
         if (!prev) return prev;
-        updatedUser = { ...prev, ...data };
-
-        if (updatedUser.roles?.includes('player')) {
-          notifyPlayerUpdate(updatedUser);
-        }
-
-        return updatedUser;
+        const updated = { ...prev, ...data };
+        AsyncStorage.setItem('user', JSON.stringify(updated)).catch(console.error);
+        return updated;
       });
-
-      // Guardamos en AsyncStorage
-      if (updatedUser) {
-        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-      }
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;
@@ -199,7 +196,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         updateUser,
         setAsGuest,
-        refreshUserData
+        refreshUserData,
       }}
     >
       {children}
