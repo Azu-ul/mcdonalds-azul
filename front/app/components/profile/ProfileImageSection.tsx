@@ -88,10 +88,19 @@ export default function ProfileImageSection({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginVertical: 24,
-    paddingVertical: 20,
+    marginVertical: 20,
+    paddingVertical: 32,
+    paddingHorizontal: 20,
     backgroundColor: '#fff',
-    width: '100%',
+    width: '90%',
+    maxWidth: 420,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   imageContainer: {
     position: 'relative',
@@ -107,7 +116,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
@@ -115,7 +124,7 @@ const styles = StyleSheet.create({
   },
   profileImageText: {
     fontSize: 36,
-    color: '#666',
+    color: '#999',
     fontWeight: 'bold',
   },
   editBadge: {
@@ -150,7 +159,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   username: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: '#292929',
   },
@@ -165,7 +174,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 150,
     textAlign: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F8F8F8',
   },
   editIconButton: {
     padding: 4,
@@ -175,13 +184,12 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 8,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F8F8F8',
     borderRadius: 8,
     minWidth: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderWidth: 0,
   },
   saveIcon: {
     fontSize: 18,
@@ -193,6 +201,6 @@ const styles = StyleSheet.create({
   email: {
     fontSize: 14,
     color: '#999',
-    marginTop: 4,
+    marginTop: 8,
   },
 });

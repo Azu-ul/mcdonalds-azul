@@ -19,14 +19,13 @@ export default function ProfileHeader({ onBack }: ProfileHeaderProps) {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFBC0D', // Amarillo McDonald's
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: 20,
+    borderBottomWidth: 0, // Sin borde
     width: '100%',
   },
   backButton: {

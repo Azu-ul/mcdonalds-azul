@@ -75,17 +75,22 @@ export default function AddressCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
-    marginHorizontal: 12,
+    marginHorizontal: 16,
     marginVertical: 8,
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 12,
+    padding: 20,
     width: '90%',
     maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   icon: {
     fontSize: 24,
@@ -93,28 +98,28 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#292929',
   },
   input: {
     borderWidth: 1,
     borderColor: '#E0E0E0',
     borderRadius: 8,
-    padding: 12,
+    padding: 14,
     fontSize: 15,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F8F8F8',
     minHeight: 80,
     textAlignVertical: 'top',
     color: '#292929',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   button: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -128,13 +133,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   buttonSecondary: {
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    backgroundColor: '#F8F8F8',
+    borderWidth: 0,
   },
   buttonText: {
     color: '#292929',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   buttonIcon: {
@@ -143,7 +147,7 @@ const styles = StyleSheet.create({
   },
   buttonTextSecondary: {
     color: '#666',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

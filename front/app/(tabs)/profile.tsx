@@ -161,7 +161,7 @@ export default function Profile() {
       setLoadingOrders(false);
     }
   };
-  
+
   useFocusEffect(
     React.useCallback(() => {
       loadUserProfile();
@@ -718,53 +718,63 @@ export default function Profile() {
   );
 }
 
+// Cambiar estos estilos:
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5'
+    backgroundColor: '#F8F8F8' // Gris más claro
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 20
+    paddingBottom: 30, // Más espacio
+    alignItems: 'center' // Centrar todo
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5'
+    backgroundColor: '#F8F8F8'
   },
   logoutButton: {
     backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
-    margin: 12,
-    marginBottom: 8,
-    padding: 16,
-    borderRadius: 8,
+    borderWidth: 0, // Sin borde
+    margin: 16,
+    marginBottom: 12,
+    padding: 18,
+    borderRadius: 12, // Más redondeado
     alignItems: 'center',
     width: '90%',
     maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   logoutButtonText: {
     color: '#292929',
-    fontSize: 15,
-    fontWeight: '600'
+    fontSize: 16,
+    fontWeight: '500' // Menos bold
   },
   deleteButton: {
     backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#DA291C',
-    margin: 12,
+    borderWidth: 0,
+    margin: 16,
     marginTop: 0,
-    padding: 16,
-    borderRadius: 8,
+    padding: 18,
+    borderRadius: 12,
     alignItems: 'center',
     width: '90%',
     maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   deleteButtonText: {
     color: '#DA291C',
-    fontSize: 15,
-    fontWeight: '600'
+    fontSize: 16,
+    fontWeight: '500'
   },
 });
