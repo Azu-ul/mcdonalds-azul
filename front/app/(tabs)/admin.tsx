@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, StatusBar } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, StatusBar, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../config/api';
 import CustomModal from '../components/CustomModal';
+import { useAuth } from '../context/AuthContext';
 
 type Item = {
     id: number;
@@ -23,6 +24,7 @@ type ModalState = {
 
 const AdminScreen = () => {
     const router = useRouter();
+    const { user, isAuthenticated, isAdmin, logout } = useAuth();
     const [activeTab, setActiveTab] = useState<string>('usuarios');
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,6 +36,7 @@ const AdminScreen = () => {
         showCancel: false,
     });
     const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+    const [permissionChecked, setPermissionChecked] = useState(false);
 
     const tabs = [
         { key: 'usuarios', label: '👥 Usuarios', icon: 'people' },
@@ -44,8 +47,24 @@ const AdminScreen = () => {
         { key: 'flyers', label: '📢 Flyers', icon: 'megaphone' },
     ];
 
+    // Verificar permisos de administrador después del montaje
+    useEffect(() => {
+        if (!isAuthenticated || !isAdmin) {
+            // Usar setTimeout para evitar la navegación durante el render inicial
+            const timer = setTimeout(() => {
+                Alert.alert('Acceso denegado', 'No tienes permisos de administrador');
+                router.replace('/');
+            }, 100);
+            return () => clearTimeout(timer);
+        } else {
+            setPermissionChecked(true);
+        }
+    }, [isAuthenticated, isAdmin]);
+
     // --- Cargar datos ---
     const fetchData = async () => {
+        if (!isAdmin) return;
+
         setLoading(true);
         try {
             let endpoint = '';
@@ -81,8 +100,10 @@ const AdminScreen = () => {
     };
 
     useEffect(() => {
-        fetchData();
-    }, [activeTab]);
+        if (isAdmin && permissionChecked) {
+            fetchData();
+        }
+    }, [activeTab, isAdmin, permissionChecked]);
 
     // --- Manejo del Modal ---
     const showModal = (modalConfig: Omit<ModalState, 'visible'>) => {
@@ -109,7 +130,7 @@ const AdminScreen = () => {
     const handleDelete = (item: Item) => {
         const itemName = getItemDisplayName(item);
         setItemToDelete(item);
-        
+
         showModal({
             type: 'delete',
             title: 'Confirmar eliminación',
@@ -128,7 +149,7 @@ const AdminScreen = () => {
 
         try {
             await api.delete(`/admin/${activeTab}/${itemToDelete.id}`);
-            
+
             showModal({
                 type: 'success',
                 title: 'Éxito',
@@ -136,12 +157,12 @@ const AdminScreen = () => {
                 showCancel: false,
                 confirmText: 'Aceptar'
             });
-            
+
             fetchData(); // Recargar datos
         } catch (err: any) {
             console.error('Delete error:', err);
             const errorMessage = err.response?.data?.error || 'No se pudo eliminar';
-            
+
             showModal({
                 type: 'error',
                 title: 'Error',
@@ -150,6 +171,28 @@ const AdminScreen = () => {
                 confirmText: 'Aceptar'
             });
         }
+    };
+
+    const handleProfilePress = () => {
+        router.push('/profile');
+    };
+
+    const handleLogout = async () => {
+        showModal({
+            type: 'info',
+            title: 'Cerrar sesión',
+            message: '¿Estás seguro de que quieres cerrar sesión?',
+            confirmText: 'Cerrar sesión',
+            cancelText: 'Cancelar',
+            showCancel: true,
+            onConfirm: async () => {
+                await logout();
+                // Usar replace en lugar de push para evitar problemas de navegación
+                setTimeout(() => {
+                    router.replace('/');
+                }, 100);
+            }
+        });
     };
 
     // Función auxiliar para obtener nombre del item
@@ -271,18 +314,67 @@ const AdminScreen = () => {
         );
     };
 
-    // --- UI ---
+    // Si aún no se han verificado los permisos, mostrar loading
+    if (!permissionChecked) {
+        return (
+            <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#DA291C" />
+                <Text style={styles.loadingText}>Verificando permisos...</Text>
+            </View>
+        );
+    }
+
+    // Si no es admin, mostrar loading (será redirigido automáticamente)
+    if (!isAdmin) {
+        return (
+            <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#DA291C" />
+                <Text style={styles.loadingText}>Redirigiendo...</Text>
+            </View>
+        );
+    }
+
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#F8F9FA" />
+            <StatusBar barStyle="light-content" backgroundColor="#DA291C" />
 
-            {/* Header */}
+            {/* Header Actualizado con más margin bottom */}
             <View style={styles.header}>
-                <Text style={styles.title}>Panel de Administración</Text>
-                <Text style={styles.subtitle}>Gestiona tu plataforma</Text>
+                <View style={styles.logoContainer}>
+                    <Text style={styles.logo}>Mc Donald's Azul</Text>
+                    <Text style={styles.subtitle}>Panel de Administración</Text>
+                </View>
+
+                <View style={styles.headerActions}>
+                    <TouchableOpacity
+                        style={styles.logoutButton}
+                        onPress={handleLogout}
+                    >
+                        <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.logoutButtonText}>Salir</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.profileContainer}
+                        onPress={handleProfilePress}
+                    >
+                        {user?.profile_image_url ? (
+                            <Image
+                                source={{ uri: user.profile_image_url }}
+                                style={styles.profileImage}
+                            />
+                        ) : (
+                            <View style={styles.profileImagePlaceholder}>
+                                <Text style={styles.profileImageText}>
+                                    {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'A'}
+                                </Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            {/* Tabs */}
+            {/* Tabs con más espacio del header */}
             <View style={styles.tabsWrapper}>
                 <FlatList
                     data={tabs}
@@ -301,7 +393,7 @@ const AdminScreen = () => {
                     <Text style={styles.listTitle}>
                         {tabs.find(tab => tab.key === activeTab)?.label} ({items.length})
                     </Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.createButton}
                         onPress={handleCreate}
                     >
@@ -314,7 +406,7 @@ const AdminScreen = () => {
 
                 {loading ? (
                     <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color="#FF6B6B" />
+                        <ActivityIndicator size="large" color="#DA291C" />
                         <Text style={styles.loadingText}>Cargando datos...</Text>
                     </View>
                 ) : (
@@ -331,7 +423,7 @@ const AdminScreen = () => {
                                 <Text style={styles.emptySubtitle}>
                                     No hay {activeTab} disponibles
                                 </Text>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.createEmptyButton}
                                     onPress={handleCreate}
                                 >
@@ -362,42 +454,92 @@ const AdminScreen = () => {
     );
 };
 
-// --- Estilos Actualizados ---
+// --- Estilos Actualizados con más margin bottom en el header ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F8F9FA',
     },
     header: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#DA291C',
+        paddingVertical: 16,
         paddingHorizontal: 20,
-        paddingTop: 60,
-        paddingBottom: 20,
-        borderBottomLeftRadius: 20,
-        borderBottomRightRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 5,
     },
-    title: {
-        fontSize: 28,
+    logoContainer: {
+        flex: 1,
+    },
+    logo: {
+        fontSize: 36,
         fontWeight: 'bold',
-        color: '#2D3436',
-        textAlign: 'center',
+        color: '#FFBC0D',
+        textShadowColor: '#292929',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 0,
     },
     subtitle: {
+        fontSize: 14,
+        color: '#FFFFFF',
+        marginTop: 4, // Aumentado ligeramente
+        fontWeight: '500',
+        opacity: 0.9,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    logoutButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        gap: 6,
+    },
+    logoutButtonText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    profileContainer: {
+        marginLeft: 0,
+    },
+    profileImage: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 2,
+        borderColor: '#FFBC0D',
+    },
+    profileImagePlaceholder: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFBC0D',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
+    profileImageText: {
+        color: '#DA291C',
         fontSize: 16,
-        color: '#636E72',
-        textAlign: 'center',
-        marginTop: 4,
+        fontWeight: 'bold',
     },
     tabsWrapper: {
         backgroundColor: '#FFFFFF',
         paddingVertical: 8,
         marginHorizontal: 16,
-        marginTop: -10,
+        marginTop: 8, // Ajustado para coincidir con el nuevo margin del header
         borderRadius: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -419,8 +561,8 @@ const styles = StyleSheet.create({
         minWidth: 120,
     },
     activeTab: {
-        backgroundColor: '#FF6B6B',
-        shadowColor: '#FF6B6B',
+        backgroundColor: '#DA291C',
+        shadowColor: '#DA291C',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -457,12 +599,12 @@ const styles = StyleSheet.create({
     createButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FF6B6B',
+        backgroundColor: '#DA291C',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 12,
         gap: 8,
-        shadowColor: '#FF6B6B',
+        shadowColor: '#DA291C',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -488,7 +630,7 @@ const styles = StyleSheet.create({
         shadowRadius: 3,
         elevation: 2,
         borderLeftWidth: 4,
-        borderLeftColor: '#FF6B6B',
+        borderLeftColor: '#DA291C',
     },
     firstItem: {
         marginTop: 8,
@@ -567,12 +709,12 @@ const styles = StyleSheet.create({
     createEmptyButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FF6B6B',
+        backgroundColor: '#DA291C',
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderRadius: 12,
         gap: 8,
-        shadowColor: '#FF6B6B',
+        shadowColor: '#DA291C',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -582,6 +724,12 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '600',
         fontSize: 16,
+    },
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
     },
 });
 

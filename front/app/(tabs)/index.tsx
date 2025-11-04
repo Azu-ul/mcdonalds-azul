@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import api, { API_URL } from '../../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import CustomModal from '../components/CustomModal';
+import { Ionicons } from '@expo/vector-icons';
 
 // Componentes
 import AddressBar from '../components/home/AddressBar';
@@ -31,10 +33,24 @@ type Flyer = {
   image: string;
   link?: string;
 };
+type ModalState = {
+  visible: boolean;
+  type: 'success' | 'error' | 'info' | 'delete';
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  showCancel?: boolean;
+  onConfirm?: () => void;
+};
+type Item = {
+  id: number;
+  [key: string]: any;
+};
 
 export default function Home() {
   const router = useRouter();
-  const { user, isAuthenticated, updateUser } = useAuth();
+  const { user, isAuthenticated, updateUser, logout } = useAuth();
   const { cart, loading: cartLoading, refetchCart } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -45,6 +61,15 @@ export default function Home() {
   const [isRestaurantPickup, setIsRestaurantPickup] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<{ name: string, address: string } | null>(null);
   const [categories, setCategories] = useState<{ id: number; name: string; icon: string }[]>([]);
+  const [modal, setModal] = useState<ModalState>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    showCancel: false,
+  });
+
+  const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
 
   // ✅ Calculamos total de items y precio desde el contexto
   const totalItems = cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
@@ -190,6 +215,10 @@ export default function Home() {
     setSelectedCategory(categoryName);
   };
 
+  const handleProfilePress = () => {
+        router.push('/profile');
+    };
+
   const getProfileImageUrl = () => {
     if (!user?.profile_image_url) return null;
     let url = user.profile_image_url;
@@ -217,49 +246,73 @@ export default function Home() {
     );
   }
 
+  const showModal = (modalConfig: Omit<ModalState, 'visible'>) => {
+    setModal({
+      visible: true,
+      ...modalConfig
+    });
+  };
+
+  const hideModal = () => {
+    setModal(prev => ({ ...prev, visible: false }));
+    setItemToDelete(null);
+  };
+
+  const handleLogout = async () => {
+    showModal({
+      type: 'info',
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro de que quieres cerrar sesión?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      showCancel: true,
+      onConfirm: async () => {
+        await logout();
+        // Usar replace en lugar de push para evitar problemas de navegación
+        setTimeout(() => {
+          router.replace('/');
+        }, 100);
+      }
+    });
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
+        {/* Header Actualizado con más margin bottom */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Text style={styles.logo}>Mc Donald's Azul</Text>
+            <Text style={styles.subtitle}>Panel de Administración</Text>
           </View>
 
-          {!isAuthenticated ? (
-            <View style={styles.authButtonsContainer}>
-              <TouchableOpacity
-                style={styles.loginButton}
-                onPress={() => router.push('/signin')}
-              >
-                <Text style={styles.loginButtonText}>Ingresar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.registerButton}
-                onPress={() => router.push('/register')}
-              >
-                <Text style={styles.registerButtonText}>Registrarse</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.logoutButtonText}>Salir</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.profileContainer}
-              onPress={() => router.push('/profile')}
+              onPress={handleProfilePress}
             >
               {user?.profile_image_url ? (
                 <Image
-                  source={{ uri: getProfileImageUrl()! }}
+                  source={{ uri: user.profile_image_url }}
                   style={styles.profileImage}
                 />
               ) : (
                 <View style={styles.profileImagePlaceholder}>
                   <Text style={styles.profileImageText}>
-                    {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                    {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'A'}
                   </Text>
                 </View>
               )}
             </TouchableOpacity>
-          )}
+          </View>
         </View>
 
         <AddressBar
@@ -316,7 +369,21 @@ export default function Home() {
         </View>
       )}
 
+      {/* Modal Personalizado */}
+      <CustomModal
+        visible={modal.visible}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        confirmText={modal.confirmText}
+        cancelText={modal.cancelText}
+        showCancel={modal.showCancel}
+        onConfirm={modal.onConfirm}
+        onCancel={hideModal}
+      />
     </View>
+
+
   );
 }
 
@@ -374,6 +441,20 @@ const styles = StyleSheet.create({
     color: '#DA291C',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  logoutButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   registerButton: {
     backgroundColor: '#FFBC0D',
@@ -478,5 +559,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     minWidth: 80,
     textAlign: 'right',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginTop: 4, // Aumentado ligeramente
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });
