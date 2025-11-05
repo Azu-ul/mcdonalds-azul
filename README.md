@@ -181,7 +181,7 @@ Si deseas habilitar el login con Google:
 
 ```bash
 cd back
-npm run dev
+npm start
 ```
 
 El servidor se ejecutará en: http://localhost:3000
@@ -202,7 +202,7 @@ En una nueva terminal:
 
 ```bash
 cd front
-npm start
+npx expo start
 ```
 
 Esto abrirá Expo DevTools en tu navegador. Desde ahí puedes:
