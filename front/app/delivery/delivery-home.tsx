@@ -46,45 +46,39 @@ export default function DeliveryHome() {
     const [modalVisible, setModalVisible] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
-    const [autoGenerate, setAutoGenerate] = useState(false);
-    const [simulationOrders, setSimulationOrders] = useState<any[]>([]);
-
+    // Polling cada 10 segundos
     useEffect(() => {
         if (isRepartidor) {
+            // Cargar datos inmediatamente
             loadData();
+
+            // Configurar polling que funcione siempre, sin importar la pestaña activa
+            const interval = setInterval(() => {
+                console.log('🔄 Polling automático - verificando nuevos pedidos...');
+
+                // Siempre verificar pedidos disponibles, incluso si no estás en esa pestaña
+                loadAvailableOrders();
+
+                // Si estás en la pestaña activa o historial, cargar esos datos también
+                if (activeTab === 'active') {
+                    loadActiveOrders();
+                } else if (activeTab === 'history') {
+                    loadHistoryOrders();
+                }
+            }, 5000); // Reducido a 5 segundos para mejor respuesta
+
+            return () => clearInterval(interval);
         }
-    }, [activeTab, isRepartidor]);
-
-    const generateSingleOrder = async () => {
-        try {
-            const res = await api.post('/simulation/orders/generate');
-            setSimulationOrders(prev => [res.data.order, ...prev.slice(0, 4)]);
-            // Recargar pedidos disponibles
-            loadAvailableOrders();
-        } catch (error: any) {
-            console.error('Error generando pedido:', error);
-        }
-    };
-
-    // 👇 AGREGAR ESTE USEEFFECT PARA AUTO-GENERACIÓN
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-
-        if (autoGenerate && activeTab === 'available') {
-            interval = setInterval(() => {
-                generateSingleOrder();
-            }, 30000); // Cada 30 segundos
-        }
-
-        return () => {
-            if (interval) clearInterval(interval);
-        };
-    }, [autoGenerate, activeTab]);
+    }, [isRepartidor, activeTab]);
 
     const loadData = async () => {
-        try {
-            setLoading(true);
+        setLoading(true);
+        await loadDataSilently();
+        setLoading(false);
+    };
 
+    const loadDataSilently = async () => {
+        try {
             switch (activeTab) {
                 case 'available':
                     await loadAvailableOrders();
@@ -98,52 +92,56 @@ export default function DeliveryHome() {
             }
         } catch (error) {
             console.error('Error loading data:', error);
-            Alert.alert('Error', 'No se pudieron cargar los datos');
-        } finally {
-            setLoading(false);
         }
     };
 
     const loadAvailableOrders = async () => {
         try {
-            console.log('🔄 Cargando pedidos disponibles...');
             const res = await api.get('/delivery/orders/available');
-            console.log('✅ Respuesta completa del backend:', JSON.stringify(res.data, null, 2));
-
-            const orders = res.data.orders || [];
-            console.log('📦 Pedidos recibidos:', orders.length);
-
-            // 👇 AGREGAR TIPO AL PARÁMETRO order
-            orders.forEach((order: Order) => {
-                console.log(`   - Pedido #${order.id}, Estado: ${order.status}, Driver: ${order.driver_id}`);
-            });
-
-            setAvailableOrders(orders);
+            console.log('📦 Pedidos disponibles:', res.data.orders);
+            setAvailableOrders(res.data.orders || []);
         } catch (error: any) {
-            console.error('❌ Error cargando pedidos disponibles:', error);
+            console.error('Error cargando pedidos disponibles:', error);
             setAvailableOrders([]);
         }
     };
 
     const loadActiveOrders = async () => {
-        const res = await api.get('/delivery/orders/active');
-        setActiveOrders(res.data.orders || []);
+        try {
+            const res = await api.get('/delivery/orders/active');
+            console.log('🚗 Pedidos activos:', res.data.orders);
+            setActiveOrders(res.data.orders || []);
+        } catch (error: any) {
+            console.error('Error cargando pedidos activos:', error);
+            setActiveOrders([]);
+        }
     };
 
     const loadHistoryOrders = async () => {
-        const res = await api.get('/delivery/orders/history');
-        setHistoryOrders(res.data.orders || []);
+        try {
+            const res = await api.get('/delivery/orders/history');
+            setHistoryOrders(res.data.orders || []);
+        } catch (error: any) {
+            console.error('Error cargando historial:', error);
+            setHistoryOrders([]);
+        }
     };
 
     const handleAcceptOrder = async (orderId: number) => {
         try {
             setActionLoading(true);
-            await api.post('/delivery/orders/accept', { order_id: orderId });
+
+            // Optimistic update
+            setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
             setModalVisible(false);
+
+            await api.post('/delivery/orders/accept', { order_id: orderId });
+
             Alert.alert('Éxito', 'Pedido aceptado correctamente');
-            loadData(); // Recargar datos
+            await loadActiveOrders();
         } catch (error: any) {
             Alert.alert('Error', error.response?.data?.error || 'No se pudo aceptar el pedido');
+            await loadAvailableOrders();
         } finally {
             setActionLoading(false);
         }
@@ -154,7 +152,7 @@ export default function DeliveryHome() {
             setActionLoading(true);
             await api.post('/delivery/orders/pickup', { order_id: orderId });
             Alert.alert('Éxito', 'Pedido marcado como retirado');
-            loadActiveOrders();
+            await loadActiveOrders();
         } catch (error: any) {
             Alert.alert('Error', error.response?.data?.error || 'No se pudo actualizar el pedido');
         } finally {
@@ -167,9 +165,29 @@ export default function DeliveryHome() {
             setActionLoading(true);
             await api.post('/delivery/orders/deliver', { order_id: orderId });
             Alert.alert('¡Entregado!', 'Pedido completado correctamente 🍟');
-            loadActiveOrders();
+            await Promise.all([loadActiveOrders(), loadHistoryOrders()]);
         } catch (error: any) {
             Alert.alert('Error', error.response?.data?.error || 'No se pudo completar el pedido');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleRejectOrder = async (orderId: number) => {
+        try {
+            setActionLoading(true);
+
+            // Optimistic update
+            setAvailableOrders(prev => prev.filter(order => order.id !== orderId));
+            setModalVisible(false);
+            setSelectedOrder(null);
+
+            await api.post('/delivery/orders/reject', { order_id: orderId });
+
+            Alert.alert('Rechazado', 'Pedido rechazado correctamente');
+        } catch (error: any) {
+            Alert.alert('Error', 'No se pudo rechazar el pedido');
+            await loadAvailableOrders();
         } finally {
             setActionLoading(false);
         }
@@ -180,59 +198,33 @@ export default function DeliveryHome() {
         setModalVisible(true);
     };
 
-    const handleRejectOrder = async (orderId: number) => {
-        try {
-            setActionLoading(true);
-
-            // SOLUCIÓN: Eliminar inmediatamente del estado LOCAL
-            setAvailableOrders(prev => {
-                const newOrders = prev.filter(order => order.id !== orderId);
-                console.log('🗑️ Eliminando pedido localmente. Antes:', prev.length, 'Después:', newOrders.length);
-                return newOrders;
-            });
-
-            // Cerrar modal inmediatamente
-            setModalVisible(false);
-            setSelectedOrder(null);
-
-            // Llamar al backend (pero no esperar para la UI)
-            api.post('/delivery/orders/reject', { order_id: orderId })
-                .then(() => {
-                    console.log('✅ Backend confirmó el rechazo');
-                })
-                .catch(error => {
-                    console.error('❌ Error en backend, recargando...', error);
-                    // Si falla el backend, recargar para restaurar
-                    loadAvailableOrders();
-                });
-
-            Alert.alert('Rechazado', 'Pedido rechazado correctamente');
-
-        } catch (error: any) {
-            console.error('❌ Error en frontend:', error);
-            Alert.alert('Error', 'No se pudo rechazar el pedido');
-        } finally {
-            setActionLoading(false);
-        }
+    const shouldShowPickupButton = (order: Order) => {
+        return order.status === 'ready' || order.status === 'preparing' || !order.status;
     };
 
+    // Cambiar de ActiveOrder a Order  
+    const shouldShowDeliverButton = (order: Order) => {
+        return order.status === 'delivering';
+    };
+
+    // Y también actualiza el getStatusColor y getStatusText para que acepten Order
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'preparing': return '#FFA500';
             case 'ready': return '#4CAF50';
             case 'delivering': return '#2196F3';
             case 'completed': return '#666';
-            default: return '#666';
+            default: return '#FFA500';
         }
     };
 
     const getStatusText = (status: string) => {
         switch (status) {
-            case 'preparing': return 'Preparando';
+            case 'preparing': return 'Preparando 🍔';
             case 'ready': return 'Listo para retirar';
             case 'delivering': return 'En camino';
             case 'completed': return 'Completado';
-            default: return 'Desconocido';
+            default: return status || 'Preparando';
         }
     };
 
@@ -320,19 +312,22 @@ export default function DeliveryHome() {
                         {/* Pedidos Disponibles */}
                         {activeTab === 'available' && (
                             <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Pedidos Disponibles</Text>
+                                <Text style={styles.sectionTitle}>Pedidos Disponibles:</Text>
+                                <Text style={styles.emptySubtext}>Tener en cuenta que los pedidos pueden tardar en llegar (generarse)</Text>
                                 {availableOrders.length === 0 ? (
                                     <View style={styles.emptyContainer}>
                                         <Ionicons name="fast-food-outline" size={64} color="#CCCCCC" />
                                         <Text style={styles.emptyText}>No hay pedidos disponibles</Text>
-                                        <Text style={styles.emptySubtext}>Los nuevos pedidos aparecerán aquí</Text>
+                                        <Text style={styles.emptySubtext}>Los nuevos pedidos aparecerán aquí. Tener en cuenta que los pedidos pueden tardar en llegar (generarse)</Text>
                                     </View>
                                 ) : (
                                     availableOrders.map((order) => (
                                         <View key={order.id} style={styles.orderCard}>
                                             <View style={styles.orderHeader}>
                                                 <Text style={styles.orderId}>Pedido #{order.id}</Text>
-                                                <Text style={styles.orderTime}>Hace {order.minutes_ago} min</Text>
+                                                <View style={[styles.statusBadge, { backgroundColor: '#FFA500' }]}>
+                                                    <Text style={styles.statusText}>Preparando 🍔</Text>
+                                                </View>
                                             </View>
 
                                             <View style={styles.orderInfo}>
@@ -350,6 +345,10 @@ export default function DeliveryHome() {
                                                     <Text style={styles.detailLabel}>Total:</Text>
                                                     <Text style={styles.detailValue}>${order.total}</Text>
                                                 </View>
+                                                <View style={styles.detailItem}>
+                                                    <Text style={styles.detailLabel}>Tiempo:</Text>
+                                                    <Text style={styles.detailValue}>{order.estimated_delivery_time} min</Text>
+                                                </View>
                                             </View>
 
                                             <TouchableOpacity
@@ -364,7 +363,7 @@ export default function DeliveryHome() {
                             </View>
                         )}
 
-                        {/* Pedidos Activos */}
+                        {/* 👇 ESTA ES LA SECCIÓN QUE FALTABA - PEDIDOS ACTIVOS */}
                         {activeTab === 'active' && (
                             <View style={styles.section}>
                                 <Text style={styles.sectionTitle}>Pedidos Activos</Text>
@@ -380,7 +379,9 @@ export default function DeliveryHome() {
                                             <View style={styles.orderHeader}>
                                                 <Text style={styles.orderId}>Pedido #{order.id}</Text>
                                                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status || '') }]}>
-                                                    <Text style={styles.statusText}>{getStatusText(order.status || '')}</Text>
+                                                    <Text style={styles.statusText}>
+                                                        {getStatusText(order.status || '')}
+                                                    </Text>
                                                 </View>
                                             </View>
 
@@ -406,7 +407,8 @@ export default function DeliveryHome() {
                                             </View>
 
                                             <View style={styles.actionButtons}>
-                                                {order.status === 'ready' && (
+                                                {/* Mostrar botón si el estado es 'preparing' o 'ready' */}
+                                                {(order.status === 'ready' || order.status === 'preparing') && (
                                                     <TouchableOpacity
                                                         style={[styles.actionButton, styles.pickupButton]}
                                                         onPress={() => handlePickupOrder(order.id)}
@@ -417,6 +419,7 @@ export default function DeliveryHome() {
                                                     </TouchableOpacity>
                                                 )}
 
+                                                {/* Mostrar botón si el estado es 'delivering' */}
                                                 {order.status === 'delivering' && (
                                                     <TouchableOpacity
                                                         style={[styles.actionButton, styles.deliverButton]}
@@ -483,7 +486,7 @@ export default function DeliveryHome() {
                     style={styles.backToProfileButton}
                     onPress={() => router.push('/profile')}
                 >
-                    <Ionicons name="person-outline" size={20} color="#FFFFFF" />
+                    <Ionicons name="person-outline" size={20} color="#DA291C" />
                     <Text style={styles.backToProfileButtonText}>Volver a mi perfil</Text>
                 </TouchableOpacity>
             </ScrollView>
@@ -513,17 +516,9 @@ export default function DeliveryHome() {
                                     <Text style={styles.modalSubtext}>Cliente: {selectedOrder.customer_name}</Text>
                                 </View>
 
-                                {/* 
-                                    <View style={styles.modalDetail}>
-                                    <Text style={styles.modalDetailLabel}>Distancia estimada:</Text>
-                                    <Text style={styles.modalDetailValue}>
-                                        {selectedOrder.delivery_distance || '--'} km
-                                    </Text>
-                                    </View>
-                                    */}
-
                                 <View style={styles.modalDetail}>
                                     <Text style={styles.modalDetailLabel}>Tiempo estimado:</Text>
+                                    <Text style={styles.modalDetailValue}>{selectedOrder.estimated_delivery_time} min</Text>
                                 </View>
                                 <View style={styles.modalDetail}>
                                     <Text style={styles.modalDetailLabel}>Total del pedido:</Text>
@@ -534,6 +529,7 @@ export default function DeliveryHome() {
                                     <TouchableOpacity
                                         style={[styles.modalButton, styles.cancelButton]}
                                         onPress={() => handleRejectOrder(selectedOrder.id)}
+                                        disabled={actionLoading}
                                     >
                                         <Text style={styles.cancelButtonText}>Rechazar</Text>
                                     </TouchableOpacity>
@@ -544,7 +540,7 @@ export default function DeliveryHome() {
                                         disabled={actionLoading}
                                     >
                                         {actionLoading ? (
-                                            <ActivityIndicator color="#FFF" size="small" />
+                                            <ActivityIndicator color="#292929" size="small" />
                                         ) : (
                                             <Text style={styles.acceptButtonText}>Aceptar Pedido</Text>
                                         )}
@@ -554,7 +550,8 @@ export default function DeliveryHome() {
                         )}
                     </View>
                 </View>
-            </Modal >
+            </Modal>
+
             {isRepartidor && (
                 <TouchableOpacity
                     style={styles.simulationButton}
@@ -562,10 +559,8 @@ export default function DeliveryHome() {
                 >
                     <Ionicons name="rocket" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
-            )
-            }
-        </View >
-
+            )}
+        </View>
     );
 }
 
@@ -699,6 +694,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#999',
         textAlign: 'center',
+        marginBottom: 29,
     },
     orderCard: {
         backgroundColor: '#FFFFFF',
@@ -874,12 +870,6 @@ const styles = StyleSheet.create({
     modalSubtext: {
         fontSize: 12,
         color: '#666',
-    },
-    modalDetails: {
-        backgroundColor: '#F8F9FA',
-        borderRadius: 8,
-        padding: 16,
-        marginVertical: 16,
     },
     modalDetail: {
         flexDirection: 'row',

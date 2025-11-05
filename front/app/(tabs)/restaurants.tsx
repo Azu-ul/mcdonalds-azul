@@ -772,7 +772,8 @@ export default function Restaurants() {
               /* MOSTRAR DIRECCIONES GUARDADAS SOLO SI ESTÁ AUTENTICADO */
               filteredAddresses.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Direcciones guardadas</Text>
+                  <Text style={styles.sectionTitle}>- Direcciones guardadas -</Text>
+                  <Text style={styles.sectionTitle}>Recuerde tocar para seleccionarla</Text>
                   <View style={styles.addressesList}>
                     {filteredAddresses.map((address) => (
                       <View key={address.id} style={styles.addressCard}>
@@ -986,16 +987,16 @@ const styles = StyleSheet.create({
     textShadowRadius: 0,
   },
   authButtonsContainer: {
-    flexDirection: 'row',
-    gap: 8,
+    flexDirection: 'column',
   },
   loginButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffffff',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: '#fff',
+    marginBottom: 8,
   },
   loginButtonText: {
     color: '#DA291C',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert,
-    ActivityIndicator, Switch
+    ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,6 @@ export default function SimulationPanel() {
     const router = useRouter();
     const { isRepartidor } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [autoGenerate, setAutoGenerate] = useState(false);
     const [generatedOrders, setGeneratedOrders] = useState<any[]>([]);
 
     const generateSingleOrder = async () => {
@@ -28,28 +27,12 @@ export default function SimulationPanel() {
         }
     };
 
-    const markOrdersAsReady = async () => {
-        try {
-            setLoading(true);
-            const res = await api.post('/simulation/orders/simulate-ready');
-            Alert.alert('✅ Listo', res.data.message);
-            // Recargar datos si es necesario
-        } catch (error: any) {
-            Alert.alert('❌ Error', error.response?.data?.error || 'No se pudieron actualizar los pedidos');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const generateMultipleOrders = async () => {
         try {
             setLoading(true);
             const res = await api.post('/simulation/orders/generate-multiple', { count: 3 });
-
-            // 👇 CORREGIR - usar setGeneratedOrders en lugar de setSimulationOrders
             const newOrders = res.data.orders || [];
             setGeneratedOrders(prev => [...newOrders, ...prev.slice(0, 2)]);
-
             Alert.alert('✅ Éxito', `${newOrders.length} pedidos generados`);
         } catch (error: any) {
             console.error('Error generando múltiples pedidos:', error);
@@ -64,6 +47,7 @@ export default function SimulationPanel() {
             setLoading(true);
             const res = await api.delete('/simulation/orders/cleanup');
             Alert.alert('🧹 Limpiado', res.data.message);
+            setGeneratedOrders([]);
         } catch (error: any) {
             Alert.alert('❌ Error', error.response?.data?.error || 'No se pudo limpiar los pedidos');
         } finally {
@@ -131,32 +115,6 @@ export default function SimulationPanel() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Auto-generación */}
-                <View style={styles.section}>
-                    <View style={styles.autoGenerateRow}>
-                        <View style={styles.autoGenerateInfo}>
-                            <Text style={styles.autoGenerateTitle}>🔄 Auto-generación</Text>
-                            <Text style={styles.autoGenerateSubtitle}>
-                                Generar pedidos automáticamente cada 30 segundos
-                            </Text>
-                        </View>
-                        <Switch
-                            value={autoGenerate}
-                            onValueChange={setAutoGenerate}
-                            trackColor={{ false: '#E0E0E0', true: '#FFBC0D' }}
-                            thumbColor={autoGenerate ? '#292929' : '#FFFFFF'}
-                        />
-                    </View>
-                </View>
-                <TouchableOpacity
-                    style={[styles.controlButton, styles.readyButton]}
-                    onPress={markOrdersAsReady}
-                    disabled={loading}
-                >
-                    <Ionicons name="fast-food" size={20} color="#FFFFFF" />
-                    <Text style={styles.controlButtonText}>Marcar como Listos</Text>
-                </TouchableOpacity>
-
                 {/* Pedidos Generados */}
                 {generatedOrders.length > 0 && (
                     <View style={styles.section}>
@@ -171,6 +129,9 @@ export default function SimulationPanel() {
                                 <Text style={styles.orderAddress}>📍 {order.delivery_address}</Text>
                                 <Text style={styles.orderCustomer}>👤 {order.customer_name}</Text>
                                 <Text style={styles.orderTime}>⏱️ {order.estimated_delivery_time} min estimados</Text>
+                                <View style={styles.readyBadge}>
+                                    <Text style={styles.readyBadgeText}>✅ Listo para retirar</Text>
+                                </View>
                             </View>
                         ))}
                     </View>
@@ -188,10 +149,11 @@ export default function SimulationPanel() {
                 <View style={styles.infoSection}>
                     <Text style={styles.infoTitle}>💡 Información</Text>
                     <Text style={styles.infoText}>
-                        • Los pedidos simulados aparecerán en el panel principal de repartidor{'\n'}
+                        • Los pedidos simulados aparecerán automáticamente en "Disponibles"{'\n'}
+                        • Estarán listos para retirar inmediatamente{'\n'}
                         • Puedes aceptarlos y completar el flujo de entrega{'\n'}
                         • Los pedidos se generan con datos realistas de Mar del Plata{'\n'}
-                        • Solo disponible en modo desarrollo
+                        • La lista se actualiza automáticamente cada 10 segundos
                     </Text>
                 </View>
             </ScrollView>
@@ -214,9 +176,6 @@ const styles = StyleSheet.create({
     },
     backButton: {
         padding: 4,
-    },
-    readyButton: {
-        backgroundColor: '#4CAF50',
     },
     logoContainer: {
         flex: 1,
@@ -292,31 +251,13 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center',
     },
-    autoGenerateRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    autoGenerateInfo: {
-        flex: 1,
-    },
-    autoGenerateTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#292929',
-        marginBottom: 4,
-    },
-    autoGenerateSubtitle: {
-        fontSize: 12,
-        color: '#666',
-    },
     generatedOrderCard: {
         backgroundColor: '#F8F9FA',
         borderRadius: 8,
         padding: 12,
         marginBottom: 8,
         borderLeftWidth: 4,
-        borderLeftColor: '#FFBC0D',
+        borderLeftColor: '#4CAF50',
     },
     orderHeader: {
         flexDirection: 'row',
@@ -353,6 +294,19 @@ const styles = StyleSheet.create({
     orderTime: {
         fontSize: 11,
         color: '#888',
+        marginBottom: 6,
+    },
+    readyBadge: {
+        backgroundColor: '#4CAF50',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        alignSelf: 'flex-start',
+    },
+    readyBadgeText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
     },
     loadingContainer: {
         alignItems: 'center',

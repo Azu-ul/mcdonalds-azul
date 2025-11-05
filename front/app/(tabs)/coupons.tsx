@@ -272,9 +272,8 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 0,
   },
-  authButtonsContainer: {
-    flexDirection: 'row',
-    gap: 8,
+   authButtonsContainer: {
+    flexDirection: 'column',
   },
   loginButton: {
     backgroundColor: '#fff',
@@ -283,6 +282,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 2,
     borderColor: '#fff',
+    marginBottom: 8,
   },
   loginButtonText: {
     color: '#DA291C',
