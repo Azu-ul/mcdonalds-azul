@@ -16,13 +16,11 @@ type Order = {
     restaurant_address: string;
     customer_name: string;
     customer_phone: string;
-    distance_to_restaurant?: number;
-    estimated_delivery_time?: number;
-    delivery_distance?: number;
     minutes_ago: number;
+    estimated_delivery_time?: number;
     status?: string;
+    driver_id?: number | null;
     pickup_time?: string;
-    tracking_status?: string;
     delivered_time?: string;
     items_count?: number;
     created_at?: string;
@@ -48,11 +46,40 @@ export default function DeliveryHome() {
     const [modalVisible, setModalVisible] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
+    const [autoGenerate, setAutoGenerate] = useState(false);
+    const [simulationOrders, setSimulationOrders] = useState<any[]>([]);
+
     useEffect(() => {
         if (isRepartidor) {
             loadData();
         }
     }, [activeTab, isRepartidor]);
+
+    const generateSingleOrder = async () => {
+        try {
+            const res = await api.post('/simulation/orders/generate');
+            setSimulationOrders(prev => [res.data.order, ...prev.slice(0, 4)]);
+            // Recargar pedidos disponibles
+            loadAvailableOrders();
+        } catch (error: any) {
+            console.error('Error generando pedido:', error);
+        }
+    };
+
+    // 👇 AGREGAR ESTE USEEFFECT PARA AUTO-GENERACIÓN
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+
+        if (autoGenerate && activeTab === 'available') {
+            interval = setInterval(() => {
+                generateSingleOrder();
+            }, 30000); // Cada 30 segundos
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [autoGenerate, activeTab]);
 
     const loadData = async () => {
         try {
@@ -78,8 +105,24 @@ export default function DeliveryHome() {
     };
 
     const loadAvailableOrders = async () => {
-        const res = await api.get('/delivery/orders/available');
-        setAvailableOrders(res.data.orders || []);
+        try {
+            console.log('🔄 Cargando pedidos disponibles...');
+            const res = await api.get('/delivery/orders/available');
+            console.log('✅ Respuesta completa del backend:', JSON.stringify(res.data, null, 2));
+
+            const orders = res.data.orders || [];
+            console.log('📦 Pedidos recibidos:', orders.length);
+
+            // 👇 AGREGAR TIPO AL PARÁMETRO order
+            orders.forEach((order: Order) => {
+                console.log(`   - Pedido #${order.id}, Estado: ${order.status}, Driver: ${order.driver_id}`);
+            });
+
+            setAvailableOrders(orders);
+        } catch (error: any) {
+            console.error('❌ Error cargando pedidos disponibles:', error);
+            setAvailableOrders([]);
+        }
     };
 
     const loadActiveOrders = async () => {
@@ -135,6 +178,42 @@ export default function DeliveryHome() {
     const openOrderModal = (order: Order) => {
         setSelectedOrder(order);
         setModalVisible(true);
+    };
+
+    const handleRejectOrder = async (orderId: number) => {
+        try {
+            setActionLoading(true);
+
+            // SOLUCIÓN: Eliminar inmediatamente del estado LOCAL
+            setAvailableOrders(prev => {
+                const newOrders = prev.filter(order => order.id !== orderId);
+                console.log('🗑️ Eliminando pedido localmente. Antes:', prev.length, 'Después:', newOrders.length);
+                return newOrders;
+            });
+
+            // Cerrar modal inmediatamente
+            setModalVisible(false);
+            setSelectedOrder(null);
+
+            // Llamar al backend (pero no esperar para la UI)
+            api.post('/delivery/orders/reject', { order_id: orderId })
+                .then(() => {
+                    console.log('✅ Backend confirmó el rechazo');
+                })
+                .catch(error => {
+                    console.error('❌ Error en backend, recargando...', error);
+                    // Si falla el backend, recargar para restaurar
+                    loadAvailableOrders();
+                });
+
+            Alert.alert('Rechazado', 'Pedido rechazado correctamente');
+
+        } catch (error: any) {
+            console.error('❌ Error en frontend:', error);
+            Alert.alert('Error', 'No se pudo rechazar el pedido');
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const getStatusColor = (status: string) => {
@@ -267,12 +346,6 @@ export default function DeliveryHome() {
                                             </View>
 
                                             <View style={styles.orderDetails}>
-                                                <View style={styles.detailItem}>
-                                                    <Text style={styles.detailLabel}>Distancia:</Text>
-                                                    <Text style={styles.detailValue}>
-                                                        {order.distance_to_restaurant ? `${order.distance_to_restaurant} km` : '--'}
-                                                    </Text>
-                                                </View>
                                                 <View style={styles.detailItem}>
                                                     <Text style={styles.detailLabel}>Total:</Text>
                                                     <Text style={styles.detailValue}>${order.total}</Text>
@@ -440,29 +513,27 @@ export default function DeliveryHome() {
                                     <Text style={styles.modalSubtext}>Cliente: {selectedOrder.customer_name}</Text>
                                 </View>
 
-                                <View style={styles.modalDetails}>
+                                {/* 
                                     <View style={styles.modalDetail}>
-                                        <Text style={styles.modalDetailLabel}>Distancia estimada:</Text>
-                                        <Text style={styles.modalDetailValue}>
-                                            {selectedOrder.delivery_distance || '--'} km
-                                        </Text>
+                                    <Text style={styles.modalDetailLabel}>Distancia estimada:</Text>
+                                    <Text style={styles.modalDetailValue}>
+                                        {selectedOrder.delivery_distance || '--'} km
+                                    </Text>
                                     </View>
-                                    <View style={styles.modalDetail}>
-                                        <Text style={styles.modalDetailLabel}>Tiempo estimado:</Text>
-                                        <Text style={styles.modalDetailValue}>
-                                            {selectedOrder.estimated_delivery_time || '--'} min
-                                        </Text>
-                                    </View>
-                                    <View style={styles.modalDetail}>
-                                        <Text style={styles.modalDetailLabel}>Total del pedido:</Text>
-                                        <Text style={styles.modalDetailValue}>${selectedOrder.total}</Text>
-                                    </View>
+                                    */}
+
+                                <View style={styles.modalDetail}>
+                                    <Text style={styles.modalDetailLabel}>Tiempo estimado:</Text>
+                                </View>
+                                <View style={styles.modalDetail}>
+                                    <Text style={styles.modalDetailLabel}>Total del pedido:</Text>
+                                    <Text style={styles.modalDetailValue}>${selectedOrder.total}</Text>
                                 </View>
 
                                 <View style={styles.modalActions}>
                                     <TouchableOpacity
                                         style={[styles.modalButton, styles.cancelButton]}
-                                        onPress={() => setModalVisible(false)}
+                                        onPress={() => handleRejectOrder(selectedOrder.id)}
                                     >
                                         <Text style={styles.cancelButtonText}>Rechazar</Text>
                                     </TouchableOpacity>
@@ -483,8 +554,18 @@ export default function DeliveryHome() {
                         )}
                     </View>
                 </View>
-            </Modal>
-        </View>
+            </Modal >
+            {isRepartidor && (
+                <TouchableOpacity
+                    style={styles.simulationButton}
+                    onPress={() => router.push('/delivery/simulation-panel')}
+                >
+                    <Ionicons name="rocket" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+            )
+            }
+        </View >
+
     );
 }
 
@@ -885,5 +966,21 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
         textAlign: 'center',
+    },
+    simulationButton: {
+        position: 'absolute',
+        bottom: 20,
+        right: 20,
+        backgroundColor: '#DA291C',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
 });

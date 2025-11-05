@@ -17,7 +17,7 @@ import cartRoutes from './routes/cart.js';
 import checkoutRoutes from './routes/checkout.js';
 import deliveryRoutes from './routes/delivery.js'
 import roleRoutes from './routes/roles.js';
-
+import simulationRoutes from './routes/simulation.js';
 
 import './config/passport.js';
 
@@ -53,6 +53,10 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/roles', roleRoutes);
 
+if (process.env.NODE_ENV === 'development') {
+  app.use('/api/simulation', simulationRoutes);
+}
+
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
@@ -69,7 +73,7 @@ app.get('/api/geocode', async (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
+  res.status(500).json({
     error: 'Error interno del servidor',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });

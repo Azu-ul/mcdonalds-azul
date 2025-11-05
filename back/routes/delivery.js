@@ -4,13 +4,10 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Rutas existentes...
-router.post('/register', authenticateToken, deliveryController.registerDriver);
-router.get('/profile/:user_id', authenticateToken, deliveryController.getDriverProfile);
-
-// Nuevas rutas para pedidos
+// Todas las rutas requieren autenticación
 router.get('/orders/available', authenticateToken, deliveryController.getAvailableOrders);
 router.post('/orders/accept', authenticateToken, deliveryController.acceptOrder);
+router.post('/orders/reject', authenticateToken, deliveryController.rejectOrder); // 👈 LÍNEA 11
 router.get('/orders/active', authenticateToken, deliveryController.getActiveOrders);
 router.post('/orders/pickup', authenticateToken, deliveryController.markAsPickedUp);
 router.post('/orders/deliver', authenticateToken, deliveryController.markAsDelivered);
