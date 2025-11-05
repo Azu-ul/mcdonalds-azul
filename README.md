@@ -227,109 +227,211 @@ npm run web
 ## Estructura del Proyecto
 
 📂 back
+
 ├── 📄 README.md
+
 └── 📂 config/
+
 │  ├── 📄 passport.js
+
 └── 📂 controllers/
+
 │  ├── 📄 deliveryController.js
+
 │  ├── 📄 roleController.js
+
 │  ├── 📄 simulationController.js
+
 ├── 📄 db.js
-├── 📄 mcdonalds_bbdd.sql
+
+├── 📄 mcdonalds\_bbdd.sql
+
 └── 📂 middleware/
+
 │  ├── 📄 auth.js
+
 │  ├── 📄 role.js
+
 ├── 📄 package-lock.json
+
 ├── 📄 package.json
+
 └── 📂 routes/
+
 │  ├── 📄 addresses.js
+
 │  ├── 📄 admin.js
+
 │  ├── 📄 auth.js
+
 │  ├── 📄 cart.js
+
 │  ├── 📄 categories.js
+
 │  ├── 📄 checkout.js
+
 │  ├── 📄 coupons.js
+
 │  ├── 📄 delivery.js
+
 │  ├── 📄 flyers.js
+
 │  ├── 📄 home.js
+
 │  ├── 📄 products.js
+
 │  ├── 📄 profile.js
+
 │  ├── 📄 restaurants.js
+
 │  ├── 📄 roles.js
+
 │  ├── 📄 simulation.js
+
 │  ├── 📄 user.js
+
 ├── 📄 server.js
+
 └── 📂 uploads/
 
 📂 front
+
 └── 📂 app/
+
 ├── 📄 app.json
+
 │  └── 📂 (tabs)/
-│    ├── 📄 _layout.tsx
+
+│    ├── 📄 \_layout.tsx
+
 │    ├── 📄 coupons.tsx
+
 │    ├── 📄 index.tsx
+
 │    ├── 📄 profile.tsx
+
 │    ├── 📄 restaurants.tsx
-│  ├── 📄 _layout.tsx
+
+│  ├── 📄 \_layout.tsx
+
 │  └── 📂 admin/
+
 │    └── 📂 create/
+
 │      ├── 📄 [type].tsx
+
 │    └── 📂 edit/
+
 │      └── 📂 [type]/
+
 │        ├── 📄 [id].tsx
+
 │    ├── 📄 index.tsx
+
 │  ├── 📄 checkout.tsx
+
 │  └── 📂 components/
+
 │    ├── 📄 CustomModal.tsx
+
 │    ├── 📄 ImagePickerModal.tsx
+
 │    ├── 📄 SelectionModal.tsx
+
 │    └── 📂 home/
+
 │      ├── 📄 AddressBar.tsx
+
 │      ├── 📄 BottomTabs.tsx
+
 │      ├── 📄 CategoryCarousel.tsx
+
 │      ├── 📄 FloatingCart.tsx
+
 │      ├── 📄 FlyerCarousel.tsx
+
 │      ├── 📄 ProductCarousel.tsx
+
 │    └── 📂 profile/
+
 │      ├── 📄 AddressCard.tsx
+
 │      ├── 📄 DocumentCard.tsx
+
 │      ├── 📄 OrderHistoryCard.tsx
+
 │      ├── 📄 PersonalInfoCard.tsx
+
 │      ├── 📄 ProfileHeader.tsx
+
 │      ├── 📄 ProfileImageSection.tsx
+
 │  └── 📂 context/
+
 │    ├── 📄 AuthContext.tsx
+
 │    ├── 📄 CartContext.tsx
+
 │    ├── 📄 CouponContext.tsx
+
 │  └── 📂 delivery/
+
 │    ├── 📄 delivery-home.tsx
+
 │    ├── 📄 delivery-register.tsx
+
 │    ├── 📄 simulation-panel.tsx
+
 │  └── 📂 product/
+
 │    ├── 📄 AddToCartButton.tsx
+
 │    ├── 📄 CondimentSelector.tsx
+
 │    ├── 📄 DrinkSelector.tsx
+
 │    ├── 📄 IngredientSelector.tsx
+
 │    ├── 📄 SideSelector.tsx
+
 │    ├── 📄 [id].tsx
+
 │    ├── 📄 cart.tsx
+
 │  ├── 📄 register.tsx
+
 │  ├── 📄 signin.tsx
+
 │  └── 📂 utils/
+
 │    ├── 📄 geocoding.ts
+
 └── 📂 assets/
+
 ├── 📄 assets.d.ts
+
 │  ├── 📄 adaptive-icon.png
+
 │  ├── 📄 favicon.png
+
 │  ├── 📄 google-icon.png
+
 │  ├── 📄 icon.png
+
 │  ├── 📄 splash-icon.png
+
 └── 📂 config/
+
 │  ├── 📄 api.ts
+
 ├── 📄 eas.json
+
 ├── 📄 index.ts
+
 ├── 📄 package-lock.json
+
 ├── 📄 package.json
+
 └── 📄 tsconfig.json
 
 ## Variables de Entorno
