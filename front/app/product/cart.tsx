@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, Alert, ActivityIndicator
+  Image, ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useCoupon } from '../context/CouponContext';
+import CustomModal from '../components/CustomModal';
 import api from '../../config/api';
 
 type CartItem = {
@@ -21,6 +22,17 @@ type CartItem = {
   drink?: string;
   customizations?: any;
 };
+
+type CustomModalState = {
+  visible: boolean;
+  type: 'success' | 'error' | 'info' | 'delete';
+  title: string;
+  message: string;
+  confirmText?: string;
+  showCancel?: boolean;
+  onConfirm?: () => void;
+};
+
 export default function Cart() {
   const router = useRouter();
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -31,12 +43,32 @@ export default function Cart() {
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [discount, setDiscount] = useState(0);
 
+  const [customModal, setCustomModal] = useState<CustomModalState>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
+
+  const showCustomModal = (config: Omit<CustomModalState, 'visible'>) => {
+    setCustomModal({ ...config, visible: true });
+  };
+
+  const hideCustomModal = () => {
+    setCustomModal(prev => ({ ...prev, visible: false }));
+  };
+
   useEffect(() => {
-    // AGREGAR este check para evitar navegar antes del mount
     if (!isAuthenticated && !loading) {
-      Alert.alert('Error', 'Debes iniciar sesión', [
-        { text: 'OK', onPress: () => router.replace('/') }
-      ]);
+      showCustomModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Debes iniciar sesión',
+        onConfirm: () => {
+          hideCustomModal();
+          router.replace('/');
+        },
+      });
       return;
     }
 
@@ -53,7 +85,6 @@ export default function Cart() {
       const res = await api.get('/cart');
       setCartItems(res.data.cart?.items || []);
 
-      // Cargar cupón aplicado si existe
       if (res.data.cart?.coupon_id) {
         setAppliedCoupon({
           id: res.data.cart.coupon_id,
@@ -65,7 +96,12 @@ export default function Cart() {
       }
     } catch (error) {
       console.error('Error loading cart:', error);
-      Alert.alert('Error', 'No se pudo cargar el carrito');
+      showCustomModal({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudo cargar el carrito',
+        onConfirm: hideCustomModal,
+      });
     } finally {
       setLoading(false);
     }
@@ -77,18 +113,15 @@ export default function Cart() {
     address: string;
   } | null>(null);
 
-  // Agregar después de loadCart()
   const loadDeliveryInfo = async () => {
     try {
       if (user?.selectedRestaurant) {
-        // Es pickup
         setDeliveryInfo({
           type: 'pickup',
           label: user.selectedRestaurant.name,
           address: user.selectedRestaurant.address
         });
       } else if (user?.address) {
-        // Es delivery
         setDeliveryInfo({
           type: 'delivery',
           label: 'Mi dirección',
@@ -114,9 +147,13 @@ export default function Cart() {
   };
 
   const updateQuantity = async (itemId: number, newQuantity: number) => {
-    // Límite de 5 productos
     if (newQuantity > 5) {
-      Alert.alert('Límite alcanzado', 'Máximo 5 unidades por producto');
+      showCustomModal({
+        type: 'info',
+        title: 'Límite alcanzado',
+        message: 'Máximo 5 unidades por producto',
+        onConfirm: hideCustomModal,
+      });
       return;
     }
 
@@ -128,7 +165,6 @@ export default function Cart() {
     try {
       await api.put(`/cart/items/${itemId}`, { quantity: newQuantity });
 
-      // Actualizar estado local
       setCartItems(prev =>
         prev.map(item => {
           if (item.id === itemId) {
@@ -139,12 +175,16 @@ export default function Cart() {
         })
       );
     } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar la cantidad');
+      showCustomModal({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudo actualizar la cantidad',
+        onConfirm: hideCustomModal,
+      });
     }
   };
 
   const handleEditItem = (item: CartItem) => {
-    // Construir query params con las selecciones actuales
     const params: any = {
       edit: 'true',
       cartItemId: item.id,
@@ -158,7 +198,6 @@ export default function Cart() {
       params.customizations = JSON.stringify(item.customizations);
     }
 
-    // Navegar al producto con los parámetros
     const queryString = new URLSearchParams(params).toString();
     router.push(`/product/${item.product_id}?${queryString}`);
   };
@@ -168,7 +207,12 @@ export default function Cart() {
       await api.delete(`/cart/items/${itemId}`);
       setCartItems(prev => prev.filter(item => item.id !== itemId));
     } catch (error) {
-      Alert.alert('Error', 'No se pudo eliminar el producto');
+      showCustomModal({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudo eliminar el producto',
+        onConfirm: hideCustomModal,
+      });
     }
   };
 
@@ -186,10 +230,60 @@ export default function Cart() {
 
   const handleCheckout = () => {
     if (cartItems.length === 0) {
-      Alert.alert('Carrito vacío', 'Agrega productos para continuar');
+      showCustomModal({
+        type: 'info',
+        title: 'Carrito vacío',
+        message: 'Agrega productos para continuar',
+        onConfirm: hideCustomModal,
+      });
       return;
     }
     router.push('/checkout');
+  };
+
+  const applyCoupon = async (couponId: number) => {
+    try {
+      const res = await api.post('/cart/apply-coupon', { coupon_id: couponId });
+      if (res.data.success) {
+        await loadCart();
+        showCustomModal({
+          type: 'success',
+          title: '¡Cupón aplicado!',
+          message: res.data.message,
+          onConfirm: hideCustomModal,
+        });
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'No se pudo aplicar el cupón';
+      showCustomModal({
+        type: 'error',
+        title: 'Error',
+        message,
+        onConfirm: hideCustomModal,
+      });
+      console.error('Error aplicando cupón:', error);
+    }
+  };
+
+  const removeCoupon = async () => {
+    try {
+      await api.delete('/cart/coupon');
+      setAppliedCoupon(null);
+      setDiscount(0);
+      showCustomModal({
+        type: 'info',
+        title: 'Cupón removido',
+        message: 'El cupón ha sido removido del carrito',
+        onConfirm: hideCustomModal,
+      });
+    } catch (error) {
+      showCustomModal({
+        type: 'error',
+        title: 'Error',
+        message: 'No se pudo remover el cupón',
+        onConfirm: hideCustomModal,
+      });
+    }
   };
 
   if (loading) {
@@ -211,31 +305,6 @@ export default function Cart() {
       </View>
     );
   }
-
-  const applyCoupon = async (couponId: number) => {
-    try {
-      const res = await api.post('/cart/apply-coupon', { coupon_id: couponId });
-      if (res.data.success) {
-        await loadCart(); // Recargar carrito con cupón aplicado
-        Alert.alert('¡Cupón aplicado!', res.data.message);
-      }
-    } catch (error: any) {
-      const message = error.response?.data?.message || 'No se pudo aplicar el cupón';
-      Alert.alert('Error', message);
-      console.error('Error aplicando cupón:', error);
-    }
-  };
-
-  const removeCoupon = async () => {
-    try {
-      await api.delete('/cart/coupon');
-      setAppliedCoupon(null);
-      setDiscount(0);
-      Alert.alert('Cupón removido');
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo remover el cupón');
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -314,7 +383,6 @@ export default function Cart() {
           </View>
         ))}
 
-
         {coupons.length > 0 && (
           <View style={styles.couponsListSection}>
             <Text style={styles.couponsListTitle}>Cupones disponibles</Text>
@@ -325,11 +393,9 @@ export default function Cart() {
                   style={styles.couponCard}
                   onPress={() => {
                     if (coupon.product_id) {
-                      // Redirigir al producto con el cupón
                       setSelectedCoupon(coupon);
                       router.push(`/product/${coupon.product_id}?fromCart=true`);
                     } else {
-                      // Aplicar cupón al carrito
                       applyCoupon(coupon.id);
                     }
                   }}
@@ -398,10 +464,20 @@ export default function Cart() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <CustomModal
+        visible={customModal.visible}
+        type={customModal.type}
+        title={customModal.title}
+        message={customModal.message}
+        confirmText={customModal.confirmText}
+        showCancel={customModal.showCancel}
+        onConfirm={customModal.onConfirm}
+        onCancel={hideCustomModal}
+      />
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },

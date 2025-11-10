@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Image,
-    Modal, Alert
+    Modal
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import api from '../../config/api';
 import { Ionicons } from '@expo/vector-icons';
+import CustomModal from '../components/CustomModal';
 
 type Order = {
     id: number;
@@ -34,6 +35,16 @@ type ActiveOrder = Order & {
     delivered_time?: string;
 };
 
+type CustomModalState = {
+    visible: boolean;
+    type: 'success' | 'error' | 'info' | 'delete';
+    title: string;
+    message: string;
+    confirmText?: string;
+    showCancel?: boolean;
+    onConfirm?: () => void;
+};
+
 export default function DeliveryHome() {
     const router = useRouter();
     const { user, isRepartidor } = useAuth();
@@ -45,27 +56,36 @@ export default function DeliveryHome() {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    
+    const [customModal, setCustomModal] = useState<CustomModalState>({
+        visible: false,
+        type: 'info',
+        title: '',
+        message: '',
+    });
 
-    // Polling cada 10 segundos
+    const showCustomModal = (config: Omit<CustomModalState, 'visible'>) => {
+        setCustomModal({ ...config, visible: true });
+    };
+
+    const hideCustomModal = () => {
+        setCustomModal(prev => ({ ...prev, visible: false }));
+    };
+
     useEffect(() => {
         if (isRepartidor) {
-            // Cargar datos inmediatamente
             loadData();
 
-            // Configurar polling que funcione siempre, sin importar la pestaña activa
             const interval = setInterval(() => {
                 console.log('🔄 Polling automático - verificando nuevos pedidos...');
-
-                // Siempre verificar pedidos disponibles, incluso si no estás en esa pestaña
                 loadAvailableOrders();
 
-                // Si estás en la pestaña activa o historial, cargar esos datos también
                 if (activeTab === 'active') {
                     loadActiveOrders();
                 } else if (activeTab === 'history') {
                     loadHistoryOrders();
                 }
-            }, 5000); // Reducido a 5 segundos para mejor respuesta
+            }, 5000);
 
             return () => clearInterval(interval);
         }
@@ -131,16 +151,26 @@ export default function DeliveryHome() {
         try {
             setActionLoading(true);
 
-            // Optimistic update
             setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
             setModalVisible(false);
 
             await api.post('/delivery/orders/accept', { order_id: orderId });
 
-            Alert.alert('Éxito', 'Pedido aceptado correctamente');
+            showCustomModal({
+                type: 'success',
+                title: 'Éxito',
+                message: 'Pedido aceptado correctamente',
+                onConfirm: hideCustomModal,
+            });
+            
             await loadActiveOrders();
         } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'No se pudo aceptar el pedido');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: error.response?.data?.error || 'No se pudo aceptar el pedido',
+                onConfirm: hideCustomModal,
+            });
             await loadAvailableOrders();
         } finally {
             setActionLoading(false);
@@ -151,10 +181,22 @@ export default function DeliveryHome() {
         try {
             setActionLoading(true);
             await api.post('/delivery/orders/pickup', { order_id: orderId });
-            Alert.alert('Éxito', 'Pedido marcado como retirado');
+            
+            showCustomModal({
+                type: 'success',
+                title: 'Éxito',
+                message: 'Pedido marcado como retirado',
+                onConfirm: hideCustomModal,
+            });
+            
             await loadActiveOrders();
         } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'No se pudo actualizar el pedido');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: error.response?.data?.error || 'No se pudo actualizar el pedido',
+                onConfirm: hideCustomModal,
+            });
         } finally {
             setActionLoading(false);
         }
@@ -164,10 +206,22 @@ export default function DeliveryHome() {
         try {
             setActionLoading(true);
             await api.post('/delivery/orders/deliver', { order_id: orderId });
-            Alert.alert('¡Entregado!', 'Pedido completado correctamente 🍟');
+            
+            showCustomModal({
+                type: 'success',
+                title: '¡Entregado!',
+                message: 'Pedido completado correctamente 🍟',
+                onConfirm: hideCustomModal,
+            });
+            
             await Promise.all([loadActiveOrders(), loadHistoryOrders()]);
         } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'No se pudo completar el pedido');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: error.response?.data?.error || 'No se pudo completar el pedido',
+                onConfirm: hideCustomModal,
+            });
         } finally {
             setActionLoading(false);
         }
@@ -177,16 +231,25 @@ export default function DeliveryHome() {
         try {
             setActionLoading(true);
 
-            // Optimistic update
             setAvailableOrders(prev => prev.filter(order => order.id !== orderId));
             setModalVisible(false);
             setSelectedOrder(null);
 
             await api.post('/delivery/orders/reject', { order_id: orderId });
 
-            Alert.alert('Rechazado', 'Pedido rechazado correctamente');
+            showCustomModal({
+                type: 'info',
+                title: 'Rechazado',
+                message: 'Pedido rechazado correctamente',
+                onConfirm: hideCustomModal,
+            });
         } catch (error: any) {
-            Alert.alert('Error', 'No se pudo rechazar el pedido');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: 'No se pudo rechazar el pedido',
+                onConfirm: hideCustomModal,
+            });
             await loadAvailableOrders();
         } finally {
             setActionLoading(false);
@@ -202,12 +265,10 @@ export default function DeliveryHome() {
         return order.status === 'ready' || order.status === 'preparing' || !order.status;
     };
 
-    // Cambiar de ActiveOrder a Order  
     const shouldShowDeliverButton = (order: Order) => {
         return order.status === 'delivering';
     };
 
-    // Y también actualiza el getStatusColor y getStatusText para que acepten Order
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'preparing': return '#FFA500';
@@ -241,7 +302,6 @@ export default function DeliveryHome() {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <View style={styles.logoContainer}>
                     <Text style={styles.logo}>Mc Donald's Azul</Text>
@@ -267,7 +327,6 @@ export default function DeliveryHome() {
                 </TouchableOpacity>
             </View>
 
-            {/* Tabs */}
             <View style={styles.tabsContainer}>
                 <TouchableOpacity
                     style={[styles.tab, activeTab === 'available' && styles.activeTab]}
@@ -300,7 +359,6 @@ export default function DeliveryHome() {
                 </TouchableOpacity>
             </View>
 
-            {/* Content */}
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {loading ? (
                     <View style={styles.loadingContainer}>
@@ -309,7 +367,6 @@ export default function DeliveryHome() {
                     </View>
                 ) : (
                     <>
-                        {/* Pedidos Disponibles */}
                         {activeTab === 'available' && (
                             <View style={styles.section}>
                                 <Text style={styles.sectionTitle}>Pedidos Disponibles:</Text>
@@ -363,7 +420,6 @@ export default function DeliveryHome() {
                             </View>
                         )}
 
-                        {/* 👇 ESTA ES LA SECCIÓN QUE FALTABA - PEDIDOS ACTIVOS */}
                         {activeTab === 'active' && (
                             <View style={styles.section}>
                                 <Text style={styles.sectionTitle}>Pedidos Activos</Text>
@@ -407,7 +463,6 @@ export default function DeliveryHome() {
                                             </View>
 
                                             <View style={styles.actionButtons}>
-                                                {/* Mostrar botón si el estado es 'preparing' o 'ready' */}
                                                 {(order.status === 'ready' || order.status === 'preparing') && (
                                                     <TouchableOpacity
                                                         style={[styles.actionButton, styles.pickupButton]}
@@ -419,7 +474,6 @@ export default function DeliveryHome() {
                                                     </TouchableOpacity>
                                                 )}
 
-                                                {/* Mostrar botón si el estado es 'delivering' */}
                                                 {order.status === 'delivering' && (
                                                     <TouchableOpacity
                                                         style={[styles.actionButton, styles.deliverButton]}
@@ -437,7 +491,6 @@ export default function DeliveryHome() {
                             </View>
                         )}
 
-                        {/* Historial */}
                         {activeTab === 'history' && (
                             <View style={styles.section}>
                                 <Text style={styles.sectionTitle}>Historial de Pedidos</Text>
@@ -491,7 +544,6 @@ export default function DeliveryHome() {
                 </TouchableOpacity>
             </ScrollView>
 
-            {/* Modal para ver pedido disponible */}
             <Modal
                 visible={modalVisible}
                 animationType="slide"
@@ -551,6 +603,17 @@ export default function DeliveryHome() {
                     </View>
                 </View>
             </Modal>
+
+            <CustomModal
+                visible={customModal.visible}
+                type={customModal.type}
+                title={customModal.title}
+                message={customModal.message}
+                confirmText={customModal.confirmText}
+                showCancel={customModal.showCancel}
+                onConfirm={customModal.onConfirm}
+                onCancel={hideCustomModal}
+            />
 
             {isRepartidor && (
                 <TouchableOpacity

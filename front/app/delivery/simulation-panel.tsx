@@ -1,27 +1,64 @@
 import React, { useState } from 'react';
 import {
-    View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert,
+    View, Text, TouchableOpacity, ScrollView, StyleSheet,
     ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import api from '../../config/api';
 import { Ionicons } from '@expo/vector-icons';
+import CustomModal from '../components/CustomModal';
+
+type CustomModalState = {
+    visible: boolean;
+    type: 'success' | 'error' | 'info' | 'delete';
+    title: string;
+    message: string;
+    confirmText?: string;
+    showCancel?: boolean;
+    onConfirm?: () => void;
+};
 
 export default function SimulationPanel() {
     const router = useRouter();
     const { isRepartidor } = useAuth();
     const [loading, setLoading] = useState(false);
     const [generatedOrders, setGeneratedOrders] = useState<any[]>([]);
+    
+    const [customModal, setCustomModal] = useState<CustomModalState>({
+        visible: false,
+        type: 'info',
+        title: '',
+        message: '',
+    });
+
+    const showCustomModal = (config: Omit<CustomModalState, 'visible'>) => {
+        setCustomModal({ ...config, visible: true });
+    };
+
+    const hideCustomModal = () => {
+        setCustomModal(prev => ({ ...prev, visible: false }));
+    };
 
     const generateSingleOrder = async () => {
         try {
             setLoading(true);
             const res = await api.post('/simulation/orders/generate');
             setGeneratedOrders(prev => [res.data.order, ...prev.slice(0, 4)]);
-            Alert.alert('✅ Éxito', 'Pedido simulado generado');
+            
+            showCustomModal({
+                type: 'success',
+                title: '✅ Éxito',
+                message: 'Pedido simulado generado',
+                onConfirm: hideCustomModal,
+            });
         } catch (error: any) {
-            Alert.alert('❌ Error', error.response?.data?.error || 'No se pudo generar el pedido');
+            showCustomModal({
+                type: 'error',
+                title: '❌ Error',
+                message: error.response?.data?.error || 'No se pudo generar el pedido',
+                onConfirm: hideCustomModal,
+            });
         } finally {
             setLoading(false);
         }
@@ -33,10 +70,21 @@ export default function SimulationPanel() {
             const res = await api.post('/simulation/orders/generate-multiple', { count: 3 });
             const newOrders = res.data.orders || [];
             setGeneratedOrders(prev => [...newOrders, ...prev.slice(0, 2)]);
-            Alert.alert('✅ Éxito', `${newOrders.length} pedidos generados`);
+            
+            showCustomModal({
+                type: 'success',
+                title: '✅ Éxito',
+                message: `${newOrders.length} pedidos generados`,
+                onConfirm: hideCustomModal,
+            });
         } catch (error: any) {
             console.error('Error generando múltiples pedidos:', error);
-            Alert.alert('❌ Error', error.response?.data?.error || 'No se pudo generar los pedidos');
+            showCustomModal({
+                type: 'error',
+                title: '❌ Error',
+                message: error.response?.data?.error || 'No se pudo generar los pedidos',
+                onConfirm: hideCustomModal,
+            });
         } finally {
             setLoading(false);
         }
@@ -46,10 +94,22 @@ export default function SimulationPanel() {
         try {
             setLoading(true);
             const res = await api.delete('/simulation/orders/cleanup');
-            Alert.alert('🧹 Limpiado', res.data.message);
+            
+            showCustomModal({
+                type: 'info',
+                title: '🧹 Limpiado',
+                message: res.data.message,
+                onConfirm: hideCustomModal,
+            });
+            
             setGeneratedOrders([]);
         } catch (error: any) {
-            Alert.alert('❌ Error', error.response?.data?.error || 'No se pudo limpiar los pedidos');
+            showCustomModal({
+                type: 'error',
+                title: '❌ Error',
+                message: error.response?.data?.error || 'No se pudo limpiar los pedidos',
+                onConfirm: hideCustomModal,
+            });
         } finally {
             setLoading(false);
         }
@@ -68,7 +128,6 @@ export default function SimulationPanel() {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -81,7 +140,6 @@ export default function SimulationPanel() {
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Controles de Simulación */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>🎮 Controles de Simulación</Text>
 
@@ -115,7 +173,6 @@ export default function SimulationPanel() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Pedidos Generados */}
                 {generatedOrders.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>📦 Últimos Pedidos Generados</Text>
@@ -137,7 +194,6 @@ export default function SimulationPanel() {
                     </View>
                 )}
 
-                {/* Loading */}
                 {loading && (
                     <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color="#FFBC0D" />
@@ -145,7 +201,6 @@ export default function SimulationPanel() {
                     </View>
                 )}
 
-                {/* Información */}
                 <View style={styles.infoSection}>
                     <Text style={styles.infoTitle}>💡 Información</Text>
                     <Text style={styles.infoText}>
@@ -157,6 +212,17 @@ export default function SimulationPanel() {
                     </Text>
                 </View>
             </ScrollView>
+
+            <CustomModal
+                visible={customModal.visible}
+                type={customModal.type}
+                title={customModal.title}
+                message={customModal.message}
+                confirmText={customModal.confirmText}
+                showCancel={customModal.showCancel}
+                onConfirm={customModal.onConfirm}
+                onCancel={hideCustomModal}
+            />
         </View>
     );
 }

@@ -6,13 +6,13 @@ import {
   ScrollView,
   StyleSheet,
   Image,
-  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useCoupon } from '../context/CouponContext';
 import { API_URL } from '../../config/api';
 import api from '../../config/api';
+import CustomModal from '../components/CustomModal';
 
 type Coupon = {
   id: number;
@@ -34,6 +34,20 @@ export default function Cupones() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const { setSelectedCoupon } = useCoupon();
+
+  const [modalState, setModalState] = useState<{
+    visible: boolean;
+    type: 'success' | 'error' | 'info' | 'delete';
+    title: string;
+    message: string;
+    showCancel?: boolean;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
 
   useEffect(() => {
     loadCoupons();
@@ -86,31 +100,36 @@ export default function Cupones() {
 
   const handleCouponPress = async (coupon: Coupon) => {
     try {
-      // Si el cupón es para un producto específico
       if (coupon.product_id) {
-        // Guardar el cupón en el contexto
         setSelectedCoupon(coupon);
-
-        // Navegar al producto
         router.push(`/product/${coupon.product_id}`);
       } else {
-        // Si es cupón general, aplicar al carrito
         const response = await api.post('/cart/apply-coupon', {
           coupon_id: coupon.id
         });
 
         if (response.data.success) {
-          Alert.alert('¡Cupón aplicado!', response.data.message, [
-            { text: 'Ver carrito', onPress: () => router.push('/cart') }
-          ]);
+          setModalState({
+            visible: true,
+            type: 'success',
+            title: '¡Cupón aplicado!',
+            message: response.data.message,
+            onConfirm: () => {
+              setModalState(prev => ({ ...prev, visible: false }));
+              router.push('/cart');
+            }
+          });
         }
       }
     } catch (error: any) {
       console.error('Error aplicando cupón:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'No se pudo aplicar el cupón'
-      );
+      setModalState({
+        visible: true,
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.message || 'No se pudo aplicar el cupón',
+        onConfirm: () => setModalState(prev => ({ ...prev, visible: false }))
+      });
     }
   };
 
@@ -236,6 +255,17 @@ export default function Cupones() {
           <View style={styles.bottomSpacing} />
         </View>
       </ScrollView>
+
+      <CustomModal
+        visible={modalState.visible}
+        type={modalState.type}
+        title={modalState.title}
+        message={modalState.message}
+        confirmText={modalState.type === 'success' ? 'Ver carrito' : 'Aceptar'}
+        showCancel={modalState.showCancel}
+        onConfirm={modalState.onConfirm}
+        onCancel={() => setModalState(prev => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -272,7 +302,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 0,
   },
-   authButtonsContainer: {
+  authButtonsContainer: {
     flexDirection: 'column',
   },
   loginButton: {

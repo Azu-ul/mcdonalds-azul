@@ -65,6 +65,16 @@ type Product = {
 
 type ModalType = 'ingredients' | 'sides' | 'drinks' | 'condiments' | null;
 
+type CustomModalState = {
+    visible: boolean;
+    type: 'success' | 'error' | 'info' | 'delete';
+    title: string;
+    message: string;
+    confirmText?: string;
+    showCancel?: boolean;
+    onConfirm?: () => void;
+};
+
 export default function ProductDetail() {
     const router = useRouter();
     const { id, edit, cartItemId, size, side, drink, customizations: customizationsParam, fromCart } = useLocalSearchParams<{
@@ -83,8 +93,6 @@ export default function ProductDetail() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-
-    // Estados de selección
     const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
     const [selectedSide, setSelectedSide] = useState<SideOption | null>(null);
     const [selectedDrink, setSelectedDrink] = useState<DrinkOption | null>(null);
@@ -92,11 +100,24 @@ export default function ProductDetail() {
     const [condiments, setCondiments] = useState<Record<number, boolean>>({});
     const [quantity, setQuantity] = useState(1);
 
-
-    // Modales
     const [modalType, setModalType] = useState<ModalType>(null);
     const { refetchCart } = useCart();
     const { selectedCoupon, setSelectedCoupon, calculateDiscount } = useCoupon();
+
+    const [customModal, setCustomModal] = useState<CustomModalState>({
+        visible: false,
+        type: 'info',
+        title: '',
+        message: '',
+    });
+
+    const showCustomModal = (config: Omit<CustomModalState, 'visible'>) => {
+        setCustomModal({ ...config, visible: true });
+    };
+
+    const hideCustomModal = () => {
+        setCustomModal(prev => ({ ...prev, visible: false }));
+    };
 
     const getIngredientsPreview = () => {
         if (!product?.ingredients) return 'Personalizar';
@@ -122,12 +143,10 @@ export default function ProductDetail() {
                 console.log('Producto cargado:', productData);
                 setProduct(productData);
 
-                // Seleccionar tamaño por defecto (Mediano)
                 if (productData.sizes && productData.sizes.length > 0) {
                     setSelectedSize(productData.sizes[0]);
                 }
 
-                // Inicializar ingredientes por defecto
                 if (productData.ingredients) {
                     const defaultIngredients: Record<number, number> = {};
                     productData.ingredients.forEach((ing: Ingredient) => {
@@ -139,25 +158,21 @@ export default function ProductDetail() {
                 }
 
                 if (edit === 'true' && productData) {
-                    // Aplicar tamaño
                     if (size && productData.sizes) {
                         const preselectedSize = productData.sizes.find((s: SizeOption) => s.name === size);
                         if (preselectedSize) setSelectedSize(preselectedSize);
                     }
 
-                    // Aplicar acompañamiento
                     if (side && productData.sides) {
                         const preselectedSide = productData.sides.find((s: SideOption) => s.name === side);
                         if (preselectedSide) setSelectedSide(preselectedSide);
                     }
 
-                    // Aplicar bebida
                     if (drink && productData.drinks) {
                         const preselectedDrink = productData.drinks.find((d: DrinkOption) => d.name === drink);
                         if (preselectedDrink) setSelectedDrink(preselectedDrink);
                     }
 
-                    // Aplicar customizaciones
                     if (customizationsParam) {
                         try {
                             const parsed = JSON.parse(customizationsParam);
@@ -207,7 +222,6 @@ export default function ProductDetail() {
 
         subtotal = subtotal * quantity;
 
-        // Aplicar descuento de cupón si existe
         const discount = calculateDiscount(subtotal);
         const total = subtotal - discount;
 
@@ -217,7 +231,6 @@ export default function ProductDetail() {
     const isFormValid = () => {
         if (!selectedSize) return false;
 
-        // Ingredientes requeridos
         if (product?.ingredients) {
             for (const ing of product.ingredients) {
                 if (ing.is_required && (!ingredients[ing.id] || ingredients[ing.id] === 0)) {
@@ -226,7 +239,6 @@ export default function ProductDetail() {
             }
         }
 
-        // Acompañamiento y bebida solo si es combo
         if (product?.is_combo) {
             if (!selectedSide || !selectedDrink) return false;
         }
@@ -236,17 +248,32 @@ export default function ProductDetail() {
 
     const handleAddToCart = async () => {
         if (!isAuthenticated) {
-            alert('Debes iniciar sesión para agregar productos al carrito');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: 'Debes iniciar sesión para agregar productos al carrito',
+                onConfirm: hideCustomModal,
+            });
             return;
         }
 
         if (!product || !selectedSize) {
-            alert('Selecciona un tamaño');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: 'Selecciona un tamaño',
+                onConfirm: hideCustomModal,
+            });
             return;
         }
 
         if (product.is_combo && (!selectedSide || !selectedDrink)) {
-            alert('Completa todas las selecciones obligatorias del combo');
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message: 'Completa todas las selecciones obligatorias del combo',
+                onConfirm: hideCustomModal,
+            });
             return;
         }
 
@@ -267,19 +294,16 @@ export default function ProductDetail() {
 
             await api.post('/cart/items', payload);
 
-            // Si hay cupón seleccionado, aplicarlo
             if (selectedCoupon) {
                 try {
                     await api.post('/cart/apply-coupon', { coupon_id: selectedCoupon.id });
                 } catch (couponError) {
                     console.error('Error aplicando cupón:', couponError);
-                    // No bloqueamos el flujo si falla el cupón
                 }
             }
 
             await refetchCart();
 
-            // Si viene del carrito, volver al carrito
             if (fromCart === 'true') {
                 router.replace('/product/cart');
             } else {
@@ -288,7 +312,12 @@ export default function ProductDetail() {
         } catch (error: any) {
             console.error('Error al agregar al carrito:', error);
             const message = error.response?.data?.message || 'No se pudo agregar al carrito';
-            alert(message);
+            showCustomModal({
+                type: 'error',
+                title: 'Error',
+                message,
+                onConfirm: hideCustomModal,
+            });
         }
     };
 
@@ -321,7 +350,6 @@ export default function ProductDetail() {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backArrow}>←</Text>
@@ -330,14 +358,12 @@ export default function ProductDetail() {
             </View>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Imagen del producto */}
                 <Image
                     source={{ uri: getImageUrl(product.image_url) }}
                     style={styles.productImage}
                     resizeMode="contain"
                 />
 
-                {/* Nombre y precio */}
                 <View style={styles.infoContainer}>
                     {selectedCoupon && (
                         <View style={styles.couponBanner}>
@@ -360,7 +386,6 @@ export default function ProductDetail() {
                     <Text style={styles.productDescription}>{product.description}</Text>
                 </View>
 
-                {/* Selector de tamaño — SOLO si es combo */}
                 {product.is_combo && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Selecciona un tamaño</Text>
@@ -404,10 +429,8 @@ export default function ProductDetail() {
                     </View>
                 )}
 
-                {/* === PERSONALIZAR INGREDIENTES (siempre que haya ingredientes) === */}
                 {product.ingredients && product.ingredients.length > 0 && (
                     <View style={styles.section}>
-                        {/* Si es combo, usamos el título "Completá tu producto" */}
                         {product.is_combo ? (
                             <View style={styles.sectionHeader}>
                                 <Text style={styles.sectionTitle}>Completá tu producto</Text>
@@ -416,7 +439,6 @@ export default function ProductDetail() {
                                 </View>
                             </View>
                         ) : (
-                            /* Si no es combo, título simple */
                             <Text style={styles.sectionTitle}>Personalizar {product.name}</Text>
                         )}
 
@@ -438,7 +460,6 @@ export default function ProductDetail() {
                     </View>
                 )}
 
-                {/* === COMPLETÁ TU COMBO (acompañamiento y bebida) === */}
                 {product.is_combo && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
@@ -448,7 +469,6 @@ export default function ProductDetail() {
                             </View>
                         </View>
 
-                        {/* Acompañamiento */}
                         <TouchableOpacity
                             style={[
                                 styles.selectionCard,
@@ -470,7 +490,6 @@ export default function ProductDetail() {
                             <Text style={styles.arrow}>›</Text>
                         </TouchableOpacity>
 
-                        {/* Bebida */}
                         <TouchableOpacity
                             style={[
                                 styles.selectionCard,
@@ -494,7 +513,6 @@ export default function ProductDetail() {
                     </View>
                 )}
 
-                {/* Condimentos adicionales — solo si es combo */}
                 {product.is_combo && (
                     <TouchableOpacity style={styles.section} onPress={() => setModalType('condiments')}>
                         <View style={styles.condimentsHeader}>
@@ -513,7 +531,6 @@ export default function ProductDetail() {
                 <View style={styles.bottomSpacing} />
             </ScrollView>
 
-            {/* Botón flotante inferior - SIEMPRE visible, con contador y estilo original */}
             <View style={styles.bottomBar}>
                 <TouchableOpacity
                     style={[
@@ -573,7 +590,6 @@ export default function ProductDetail() {
                 </TouchableOpacity>
             </View>
 
-            {/* Modales */}
             <SelectionModal visible={!!modalType}>
                 {modalType === 'condiments' && (
                     <CondimentSelector
@@ -619,11 +635,23 @@ export default function ProductDetail() {
                     />
                 )}
             </SelectionModal>
+
+            <CustomModal
+                visible={customModal.visible}
+                type={customModal.type}
+                title={customModal.title}
+                message={customModal.message}
+                confirmText={customModal.confirmText}
+                showCancel={customModal.showCancel}
+                onConfirm={customModal.onConfirm}
+                onCancel={hideCustomModal}
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
+    // ... (todos los estilos son iguales, no los repito para ahorrar tokens)
     container: {
         flex: 1,
         backgroundColor: '#F5F5F5',
@@ -853,7 +881,6 @@ const styles = StyleSheet.create({
     bottomSpacing: {
         height: 150,
     },
-    // --- Estilos del botón inferior ---
     bottomBar: {
         position: 'absolute',
         bottom: 0,
