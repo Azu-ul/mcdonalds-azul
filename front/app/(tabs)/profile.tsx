@@ -174,7 +174,6 @@ export default function Profile() {
 
   const handleViewOrder = (orderId: number) => {
     Alert.alert('Pedido', `Ver detalles del pedido #${orderId}`);
-    // Aquí podrías navegar a una pantalla de detalle: router.push(`/orders/${orderId}`)
   };
 
   const loadUserProfile = async () => {

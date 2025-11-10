@@ -230,13 +230,13 @@ export default function Home() {
             <View style={styles.authButtonsContainer}>
               <TouchableOpacity
                 style={styles.loginButton}
-                onPress={() => router.push('/signin')}
+                onPress={() => router.replace('/signin')}
               >
                 <Text style={styles.loginButtonText}>Ingresar</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.registerButton}
-                onPress={() => router.push('/register')}
+                onPress={() => router.replace('/register')}
               >
                 <Text style={styles.registerButtonText}>Registrarse</Text>
               </TouchableOpacity>
@@ -244,7 +244,7 @@ export default function Home() {
           ) : (
             <TouchableOpacity
               style={styles.profileContainer}
-              onPress={() => router.push('/profile')}
+              onPress={() => router.replace('/profile')}
             >
               {user?.profile_image_url ? (
                 <Image
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 0,
   },
- authButtonsContainer: {
+  authButtonsContainer: {
     flexDirection: 'column',
   },
   loginButton: {
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 2,
     borderColor: '#fff',
-   marginBottom: 8,
+    marginBottom: 8,
   },
   loginButtonText: {
     color: '#DA291C',
