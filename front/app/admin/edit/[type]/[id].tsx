@@ -65,12 +65,14 @@ type Flyer = {
 
 type FormData = User | Product | Restaurant | Coupon | Flyer;
 
+// Función para formatear las fechas para el input
 const formatDateForInput = (dateString?: string) => {
   if (!dateString) return '';
   const date = new Date(dateString);
   return date.toISOString().split('T')[0];
 };
 
+// Función para formatear las fechas de la base de datos
 const formatInputToISO = (dateString: string) => {
   if (!dateString) return null;
   return new Date(dateString + 'T00:00:00').toISOString();
@@ -101,6 +103,7 @@ const EditScreen = () => {
     fetchItem();
   }, [type, id]);
 
+  // Función para cargar el elemento
   const fetchItem = async () => {
     try {
       let endpoint = '';
@@ -145,6 +148,7 @@ const EditScreen = () => {
     }
   };
 
+  // Función para guardar el elemento
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -195,14 +199,17 @@ const EditScreen = () => {
     }
   };
 
+// Función para obtener el valor de una propiedad
   const getProperty = (key: string): any => {
     return (formData as any)[key];
   };
 
+ // Función para manejar cambios en una propiedad 
   const setProperty = (key: string, value: any) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Función para manejar cambios en las fechas
   const DateInput = ({ 
     label, 
     value, 
@@ -246,6 +253,7 @@ const EditScreen = () => {
     );
   };
 
+  // Funciones para renderizar los formularios
   const renderUserForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Nombre completo</Text>
@@ -277,6 +285,7 @@ const EditScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de producto
   const renderProductForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Nombre</Text>
@@ -316,6 +325,7 @@ const EditScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de restaurante
   const renderRestaurantForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Nombre del restaurante</Text>
@@ -401,6 +411,7 @@ const EditScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de cupones
   const renderCouponForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Título del cupón</Text>
@@ -511,6 +522,7 @@ const EditScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de flyers
   const renderFlyerForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Título del flyer</Text>
@@ -592,6 +604,7 @@ const EditScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario general
   const renderForm = () => {
     switch (type) {
       case 'usuarios':

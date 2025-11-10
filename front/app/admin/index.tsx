@@ -150,6 +150,7 @@ const AdminScreen = () => {
         });
     };
 
+    // Función para confirmar la eliminación
     const confirmDelete = async () => {
         if (!itemToDelete) return;
 

@@ -28,6 +28,7 @@ type Coupon = {
   product_id?: number;
 };
 
+// Función principal
 export default function Cupones() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
@@ -53,6 +54,7 @@ export default function Cupones() {
     loadCoupons();
   }, []);
 
+  // Función para cargar los cupones
   const loadCoupons = async () => {
     try {
       setLoading(true);
@@ -71,6 +73,7 @@ export default function Cupones() {
     }
   };
 
+  // Función para formatear el descuento
   const formatDiscount = (coupon: Coupon) => {
     if (coupon.discount_type === 'percentage') {
       return `${coupon.discount_value}% OFF`;
@@ -78,6 +81,7 @@ export default function Cupones() {
     return `$${coupon.discount_value} OFF`;
   };
 
+  // Función para formatear la fecha
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Sin vencimiento';
     const date = new Date(dateString);
@@ -88,6 +92,7 @@ export default function Cupones() {
     });
   };
 
+  // Función para obtener la URL de la imagen
   const getProfileImageUrl = () => {
     if (!user?.profile_image_url) return null;
     let url = user.profile_image_url;
@@ -98,6 +103,7 @@ export default function Cupones() {
     return `${API_URL.replace('/api', '')}${url}`;
   };
 
+  // Función para manejar la presión de un cupón
   const handleCouponPress = async (coupon: Coupon) => {
     try {
       if (coupon.product_id) {
@@ -133,6 +139,7 @@ export default function Cupones() {
     }
   };
 
+  // Render
   return (
     <View style={styles.container}>
       {/* Header con logo y usuario/botones */}

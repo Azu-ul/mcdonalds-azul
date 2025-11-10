@@ -11,6 +11,7 @@ type FormData = {
   [key: string]: any;
 };
 
+
 const CreateScreen = () => {
   const router = useRouter();
   const { type } = useLocalSearchParams();
@@ -33,6 +34,7 @@ const CreateScreen = () => {
     message: '',
   });
 
+  // Función para guardar el elemento
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -60,6 +62,7 @@ const CreateScreen = () => {
           break;
       }
 
+      // Enviar la solicitud POST
       await api.post(endpoint, formData);
       setModalState({
         visible: true,
@@ -86,10 +89,12 @@ const CreateScreen = () => {
     }
   };
 
+  // Función para manejar cambios en los campos
   const setProperty = (key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  // Función para manejar cambios en las fechas
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker({ start: false, end: false });
     
@@ -99,16 +104,19 @@ const CreateScreen = () => {
     }
   };
 
+  // Función para mostrar el modal de fechas
   const showDatePickerModal = (field: 'start_date' | 'end_date') => {
     setDateField(field);
     setShowDatePicker({ start: field === 'start_date', end: field === 'end_date' });
   };
 
+  // Función para formatear las fechas
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Seleccionar fecha';
     return new Date(dateString).toLocaleDateString('es-ES');
   };
 
+  // Funciones para renderizar los formularios
   const renderUserForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Nombre completo *</Text>
@@ -149,6 +157,7 @@ const CreateScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de productos
   const renderProductForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Nombre del producto *</Text>
@@ -197,6 +206,7 @@ const CreateScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de restaurantes
   const renderRestaurantForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Nombre del restaurante *</Text>
@@ -282,6 +292,7 @@ const CreateScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de cupones
   const renderCouponForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Título del cupón *</Text>
@@ -409,6 +420,7 @@ const CreateScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario de flyers
   const renderFlyerForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.label}>Título del flyer *</Text>
@@ -498,6 +510,7 @@ const CreateScreen = () => {
     </View>
   );
 
+  // Función para renderizar el formulario general
   const renderForm = () => {
     switch (type) {
       case 'usuarios':
@@ -520,6 +533,7 @@ const CreateScreen = () => {
     }
   };
 
+  // Función para obtener el título de la pantalla
   const getTitle = () => {
     switch (type) {
       case 'usuarios': return 'Crear Usuario';

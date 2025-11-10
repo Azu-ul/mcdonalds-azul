@@ -3,49 +3,56 @@ import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet,
     ActivityIndicator
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../context/AuthContext';
-import api from '../../config/api';
-import { Ionicons } from '@expo/vector-icons';
-import CustomModal from '../components/CustomModal';
+import { useRouter } from 'expo-router'; // Hook para navegación entre pantallas
+import { useAuth } from '../context/AuthContext'; // Contexto para datos de autenticación y permisos
+import api from '../../config/api'; // Configuración para llamadas API al backend
+import { Ionicons } from '@expo/vector-icons'; // Íconos vectoriales de Ionicons
+import CustomModal from '../components/CustomModal'; // Componente modal personalizado para mostrar alertas
 
+
+// Tipo para controlar el estado y configuración del modal personalizado
 type CustomModalState = {
-    visible: boolean;
-    type: 'success' | 'error' | 'info' | 'delete';
-    title: string;
-    message: string;
-    confirmText?: string;
-    showCancel?: boolean;
-    onConfirm?: () => void;
+    visible: boolean; // Controla la visibilidad del modal
+    type: 'success' | 'error' | 'info' | 'delete'; // Tipo para cambiar apariencia y estilo
+    title: string; // Título mostrado en el modal
+    message: string; // Mensaje principal del modal
+    confirmText?: string; // Texto del botón de confirmación
+    showCancel?: boolean; // Indica si se muestra botón cancelar
+    onConfirm?: () => void; // Función para ejecutar cuando se confirma
 };
 
+
+// Componente principal Panel de Simulación
 export default function SimulationPanel() {
-    const router = useRouter();
-    const { isRepartidor } = useAuth();
-    const [loading, setLoading] = useState(false);
-    const [generatedOrders, setGeneratedOrders] = useState<any[]>([]);
+    const router = useRouter(); // Hook para controlar navegación
+    const { isRepartidor } = useAuth(); // Verifica si el usuario tiene rol repartidor
+    const [loading, setLoading] = useState(false); // Estado para mostrar indicador de carga
+    const [generatedOrders, setGeneratedOrders] = useState<any[]>([]); // Lista de pedidos simulados generados
     
     const [customModal, setCustomModal] = useState<CustomModalState>({
-        visible: false,
-        type: 'info',
-        title: '',
-        message: '',
+        visible: false, // Por defecto modal oculto
+        type: 'info', // Tipo por defecto info
+        title: '', // Sin título inicial
+        message: '', // Sin mensaje inicial
     });
 
+    // Función para mostrar el modal con configuración dinámica
     const showCustomModal = (config: Omit<CustomModalState, 'visible'>) => {
         setCustomModal({ ...config, visible: true });
     };
 
+    // Función para ocultar el modal
     const hideCustomModal = () => {
         setCustomModal(prev => ({ ...prev, visible: false }));
     };
 
+    // Función para generar un único pedido simulado
     const generateSingleOrder = async () => {
         try {
-            setLoading(true);
-            const res = await api.post('/simulation/orders/generate');
-            setGeneratedOrders(prev => [res.data.order, ...prev.slice(0, 4)]);
-            
+            setLoading(true); // Mostrar loader mientras se genera
+            const res = await api.post('/simulation/orders/generate'); // Llamada API para generar pedido
+            setGeneratedOrders(prev => [res.data.order, ...prev.slice(0, 4)]); // Agregar pedido nuevo al inicio, mantener máximo 5
+
             showCustomModal({
                 type: 'success',
                 title: '✅ Éxito',
@@ -53,6 +60,7 @@ export default function SimulationPanel() {
                 onConfirm: hideCustomModal,
             });
         } catch (error: any) {
+            // En caso de error mostrar modal con mensaje de error recibido de backend o por defecto
             showCustomModal({
                 type: 'error',
                 title: '❌ Error',
@@ -60,17 +68,18 @@ export default function SimulationPanel() {
                 onConfirm: hideCustomModal,
             });
         } finally {
-            setLoading(false);
+            setLoading(false); // Ocultar loader al finalizar
         }
     };
 
+    // Función para generar múltiples pedidos simulados (3 en este caso)
     const generateMultipleOrders = async () => {
         try {
-            setLoading(true);
-            const res = await api.post('/simulation/orders/generate-multiple', { count: 3 });
-            const newOrders = res.data.orders || [];
-            setGeneratedOrders(prev => [...newOrders, ...prev.slice(0, 2)]);
-            
+            setLoading(true); // Mostrar loader
+            const res = await api.post('/simulation/orders/generate-multiple', { count: 3 }); // Llamada API con parámetro cantidad
+            const newOrders = res.data.orders || []; // Obtener pedidos recibidos
+            setGeneratedOrders(prev => [...newOrders, ...prev.slice(0, 2)]); // Agregar nuevos pedidos limitando total a 5
+
             showCustomModal({
                 type: 'success',
                 title: '✅ Éxito',
@@ -90,19 +99,20 @@ export default function SimulationPanel() {
         }
     };
 
+    // Función para limpiar pedidos generados antiguos
     const cleanupOrders = async () => {
         try {
             setLoading(true);
-            const res = await api.delete('/simulation/orders/cleanup');
-            
+            const res = await api.delete('/simulation/orders/cleanup'); // Llamada API para limpiar
+
             showCustomModal({
                 type: 'info',
                 title: '🧹 Limpiado',
-                message: res.data.message,
+                message: res.data.message, // Mensaje desplegado sobre limpieza
                 onConfirm: hideCustomModal,
             });
-            
-            setGeneratedOrders([]);
+
+            setGeneratedOrders([]); // Vaciar lista local de pedidos generados
         } catch (error: any) {
             showCustomModal({
                 type: 'error',
@@ -115,6 +125,7 @@ export default function SimulationPanel() {
         }
     };
 
+    // Si el usuario no es repartidor, mostrar mensaje y botón para volver atrás
     if (!isRepartidor) {
         return (
             <View style={styles.centered}>
@@ -126,8 +137,11 @@ export default function SimulationPanel() {
         );
     }
 
+    // Renderizado principal para usuario repartidor
     return (
         <View style={styles.container}>
+
+            {/* Header con botón volver y título */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -139,10 +153,14 @@ export default function SimulationPanel() {
                 <View style={styles.placeholder} />
             </View>
 
+            {/* Contenido desplazarle con ScrollView */}
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+
+                {/* Sección controles */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>🎮 Controles de Simulación</Text>
 
+                    {/* Botones para generar pedidos simulados */}
                     <View style={styles.controlsGrid}>
                         <TouchableOpacity
                             style={[styles.controlButton, styles.primaryButton]}
@@ -163,6 +181,7 @@ export default function SimulationPanel() {
                         </TouchableOpacity>
                     </View>
 
+                    {/* Botón para limpiar pedidos antiguos */}
                     <TouchableOpacity
                         style={[styles.controlButton, styles.cleanupButton]}
                         onPress={cleanupOrders}
@@ -173,6 +192,7 @@ export default function SimulationPanel() {
                     </TouchableOpacity>
                 </View>
 
+                {/* Mostrar últimos pedidos generados si existen */}
                 {generatedOrders.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>📦 Últimos Pedidos Generados</Text>
@@ -194,6 +214,7 @@ export default function SimulationPanel() {
                     </View>
                 )}
 
+                {/* Indicador de carga durante generación */}
                 {loading && (
                     <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color="#FFBC0D" />
@@ -201,6 +222,7 @@ export default function SimulationPanel() {
                     </View>
                 )}
 
+                {/* Sección informativa con detalles */}
                 <View style={styles.infoSection}>
                     <Text style={styles.infoTitle}>💡 Información</Text>
                     <Text style={styles.infoText}>
@@ -213,6 +235,7 @@ export default function SimulationPanel() {
                 </View>
             </ScrollView>
 
+            {/* Modal personalizado para mostrar mensajes */}
             <CustomModal
                 visible={customModal.visible}
                 type={customModal.type}
@@ -227,6 +250,8 @@ export default function SimulationPanel() {
     );
 }
 
+
+// Estilos para los componentes UI usando StyleSheet nativo
 const styles = StyleSheet.create({
     container: {
         flex: 1,

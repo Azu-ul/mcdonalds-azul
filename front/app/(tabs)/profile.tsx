@@ -44,6 +44,7 @@ type ProfileFormData = {
   email?: string;
 };
 
+// Validaciones con yup
 const profileSchema = yup.object({
   email: yup.string()
     .transform((value) => value?.trim() || '')
@@ -66,6 +67,7 @@ const profileSchema = yup.object({
     .matches(/^[\+\d\s\-()]*$/, 'Solo números, espacios, paréntesis y guiones'),
 }).required();
 
+// Componente principal
 export default function Profile() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -107,12 +109,14 @@ export default function Profile() {
     onConfirm: undefined as (() => void) | undefined,
   });
 
+  // Formulario de perfil de usuario 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<ProfileFormData>({
     resolver: yupResolver(profileSchema),
     mode: 'onBlur',
     defaultValues: { email: '', full_name: '', phone: '' }
   });
 
+  // Manejo de estados
   const updateLoadingState = (key: keyof typeof loadingStates, value: boolean) => {
     setLoadingStates(prev => ({ ...prev, [key]: value }));
   };
@@ -136,6 +140,7 @@ export default function Profile() {
     updateModal(type, true);
   };
 
+  // Manejo de token
   const getToken = async () => {
     if (params.token) {
       const urlToken = Array.isArray(params.token) ? params.token[0] : params.token;
@@ -147,6 +152,7 @@ export default function Profile() {
     return token;
   };
 
+  // Manejo de permisos
   useEffect(() => {
     (async () => {
       await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -155,6 +161,7 @@ export default function Profile() {
     })();
   }, []);
 
+  // Manejo de cuenta
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (modals.deleteAccount && deleteCountdown > 0) {
@@ -163,6 +170,7 @@ export default function Profile() {
     return () => { if (interval) clearInterval(interval); };
   }, [modals.deleteAccount, deleteCountdown]);
 
+  // Carga de pedidos 
   const loadOrders = async () => {
     try {
       setLoadingOrders(true);
@@ -185,10 +193,12 @@ export default function Profile() {
     }, [])
   );
 
+  // Manejo de pedido
   const handleViewOrder = (orderId: number) => {
     showModal('info', 'Pedido', `Ver detalles del pedido #${orderId}`);
   };
 
+  // Carga de perfil
   const loadUserProfile = async () => {
     try {
       setLoading(true);
@@ -216,6 +226,7 @@ export default function Profile() {
     }
   };
 
+  // Actualización de nombre de usuario
   const handleUpdateUsername = async () => {
     if (!username.trim() || username.length < 3) {
       showModal('error', 'Error', 'El nombre debe tener al menos 3 caracteres');
@@ -239,6 +250,7 @@ export default function Profile() {
     }
   };
 
+  // Actualización de perfil
   const handleUpdateProfile = async (data: ProfileFormData) => {
     try {
       updateLoadingState('updatingProfile', true);
@@ -271,6 +283,7 @@ export default function Profile() {
 
   type PlatformFile = File | { uri: string; name: string; type: string };
 
+  // Subida de archivos
   const uploadFile = async (
     file: PlatformFile,
     fieldName: 'image' | 'document',
@@ -321,6 +334,7 @@ export default function Profile() {
       : data.document_image_url;
   };
 
+  // Subida de imagen de perfil
   const uploadProfileImageFile = async (file: PlatformFile) => {
     try {
       updateLoadingState('profileImage', true);
@@ -339,6 +353,7 @@ export default function Profile() {
     }
   };
 
+  // Subida de documento
   const uploadDocumentFile = async (file: PlatformFile) => {
     try {
       updateLoadingState('document', true);
@@ -356,6 +371,7 @@ export default function Profile() {
     }
   };
 
+  // Selección de documento
   const pickDocument = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -398,6 +414,7 @@ export default function Profile() {
     }
   };
 
+  // Selección de imagen
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -413,6 +430,7 @@ export default function Profile() {
         const asset = result.assets[0];
         const uri = asset.uri;
 
+        // Conversión de base64 a File
         if (Platform.OS === 'web' && uri.startsWith('data:')) {
           console.log('🔄 Convirtiendo base64 a File...');
 
@@ -441,6 +459,7 @@ export default function Profile() {
     }
   };
 
+  // Tomar foto
   const takePhoto = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -460,6 +479,7 @@ export default function Profile() {
     }
   };
 
+  // Obtener ubicación
   const handleGetLocation = async () => {
     try {
       updateLoadingState('location', true);
@@ -489,6 +509,7 @@ export default function Profile() {
     }
   };
 
+  // Obtener dirección a partir de coordenadas
   const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
@@ -514,6 +535,7 @@ export default function Profile() {
     }
   };
 
+  // Actualizar ubicación
   const handleUpdateLocation = async () => {
     if (!address.trim()) {
       showModal('error', 'Error', 'Ingresa una dirección');
@@ -540,12 +562,14 @@ export default function Profile() {
     }
   };
 
+  // Cerrar sesión
   const handleLogout = async () => {
     updateModal('logout', false);
     await logout();
     router.replace('/');
   };
 
+  // Eliminar cuenta
   const handleDeleteAccount = async () => {
     try {
       await api.delete('/profile');
@@ -559,6 +583,7 @@ export default function Profile() {
     }
   };
 
+  // Obtener URL de la imagen
   const getProfileImageUrl = () => {
     if (!user?.profile_image_url) return null;
     let url = user.profile_image_url;
@@ -577,6 +602,7 @@ export default function Profile() {
     );
   }
 
+  // Eliminar documento
   const handleDeleteDocument = async () => {
     try {
       updateLoadingState('deletingDocument', true);

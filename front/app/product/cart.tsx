@@ -3,12 +3,13 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, ActivityIndicator
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../context/AuthContext';
-import { useCoupon } from '../context/CouponContext';
-import CustomModal from '../components/CustomModal';
-import api from '../../config/api';
+import { useRouter } from 'expo-router'; // Hook para navegación
+import { useAuth } from '../context/AuthContext'; // Contexto para estado de usuario
+import { useCoupon } from '../context/CouponContext'; // Contexto para manejo de cupones
+import CustomModal from '../components/CustomModal'; // Modal personalizado para mostrar mensajes
+import api from '../../config/api'; // Comunicación con API backend
 
+// Tipo que representa un ítem del carrito
 type CartItem = {
   id: number;
   product_id: number;
@@ -23,6 +24,7 @@ type CartItem = {
   customizations?: any;
 };
 
+// Estado para modal personalizado
 type CustomModalState = {
   visible: boolean;
   type: 'success' | 'error' | 'info' | 'delete';
@@ -34,15 +36,16 @@ type CustomModalState = {
 };
 
 export default function Cart() {
-  const router = useRouter();
-  const [coupons, setCoupons] = useState<any[]>([]);
-  const { user, isAuthenticated } = useAuth();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { selectedCoupon, calculateDiscount, setSelectedCoupon } = useCoupon();
-  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
-  const [discount, setDiscount] = useState(0);
+  const router = useRouter(); // Controla la navegación
+  const [coupons, setCoupons] = useState<any[]>([]); // Lista de cupones activos
+  const { user, isAuthenticated } = useAuth(); // Estado de usuario y autenticación
+  const [cartItems, setCartItems] = useState<CartItem[]>([]); // Ítems en el carrito
+  const [loading, setLoading] = useState(true); // Indicador de carga
+  const { selectedCoupon, calculateDiscount, setSelectedCoupon } = useCoupon(); // Contexto para cupón seleccionado y cálculo de descuento
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null); // Cupón aplicado en el carrito
+  const [discount, setDiscount] = useState(0); // Monto de descuento
 
+  // Estado y funciones para mostrar modal personalizado
   const [customModal, setCustomModal] = useState<CustomModalState>({
     visible: false,
     type: 'info',
@@ -58,8 +61,10 @@ export default function Cart() {
     setCustomModal(prev => ({ ...prev, visible: false }));
   };
 
+  // Efecto para cargar datos del carrito y recomendaciones cuando usuario está autenticado
   useEffect(() => {
     if (!isAuthenticated && !loading) {
+      // Si no está autenticado, mostrar error y redirigir a inicio
       showCustomModal({
         type: 'error',
         title: 'Error',
@@ -72,6 +77,7 @@ export default function Cart() {
       return;
     }
 
+    // Si está autenticado, cargar carrito, recomendaciones y datos de entrega
     if (isAuthenticated) {
       loadCart();
       loadRecommendations();
@@ -79,12 +85,14 @@ export default function Cart() {
     }
   }, [isAuthenticated, user]);
 
+  // Función para cargar los ítems del carrito desde API
   const loadCart = async () => {
     try {
       setLoading(true);
       const res = await api.get('/cart');
       setCartItems(res.data.cart?.items || []);
 
+      // Si hay cupón aplicado en el carrito, actualizar estado y descuento
       if (res.data.cart?.coupon_id) {
         setAppliedCoupon({
           id: res.data.cart.coupon_id,
@@ -95,6 +103,7 @@ export default function Cart() {
         setDiscount(res.data.cart.discount_amount || 0);
       }
     } catch (error) {
+      // Mostrar mensaje de error si falla la carga
       console.error('Error loading cart:', error);
       showCustomModal({
         type: 'error',
@@ -107,21 +116,25 @@ export default function Cart() {
     }
   };
 
+  // Estado local para información de entrega o retiro
   const [deliveryInfo, setDeliveryInfo] = useState<{
     type: string;
     label: string;
     address: string;
   } | null>(null);
 
+  // Cargar info de entrega basada en usuario logueado
   const loadDeliveryInfo = async () => {
     try {
       if (user?.selectedRestaurant) {
+        // Si usuario tiene restaurante seleccionado, es para retiro
         setDeliveryInfo({
           type: 'pickup',
           label: user.selectedRestaurant.name,
           address: user.selectedRestaurant.address
         });
       } else if (user?.address) {
+        // Si no, info de entrega a domicilio
         setDeliveryInfo({
           type: 'delivery',
           label: 'Mi dirección',
@@ -133,6 +146,7 @@ export default function Cart() {
     }
   };
 
+  // Cargar cupones activos desde API
   const loadRecommendations = async () => {
     try {
       console.log('🔍 Cargando cupones...');
@@ -146,6 +160,7 @@ export default function Cart() {
     }
   };
 
+  // Actualiza la cantidad de un producto en el carrito, con límites
   const updateQuantity = async (itemId: number, newQuantity: number) => {
     if (newQuantity > 5) {
       showCustomModal({
@@ -163,8 +178,10 @@ export default function Cart() {
     }
 
     try {
+      // Actualiza la cantidad en el backend
       await api.put(`/cart/items/${itemId}`, { quantity: newQuantity });
 
+      // Actualiza el estado local con nuevo total
       setCartItems(prev =>
         prev.map(item => {
           if (item.id === itemId) {
@@ -175,6 +192,7 @@ export default function Cart() {
         })
       );
     } catch (error) {
+      // Mostrar error en caso de fallo
       showCustomModal({
         type: 'error',
         title: 'Error',
@@ -184,6 +202,7 @@ export default function Cart() {
     }
   };
 
+  // Maneja la edición de ítems redirigiendo con parámetros para precargar
   const handleEditItem = (item: CartItem) => {
     const params: any = {
       edit: 'true',
@@ -202,6 +221,7 @@ export default function Cart() {
     router.push(`/product/${item.product_id}?${queryString}`);
   };
 
+  // Eliminar un ítem del carrito
   const removeItem = async (itemId: number) => {
     try {
       await api.delete(`/cart/items/${itemId}`);
@@ -216,18 +236,22 @@ export default function Cart() {
     }
   };
 
+  // Calcula subtotal sumando total de cada ítem
   const calculateSubtotal = () => {
     return cartItems.reduce((sum, item) => sum + item.total_price, 0);
   };
 
+  // Calcula total restando descuento al subtotal
   const calculateTotal = () => {
     return calculateSubtotal() - discount;
   };
 
+  // Navegar a pantalla principal para continuar comprando
   const handleContinueShopping = () => {
     router.push('/');
   };
 
+  // Proceder a checkout, pero solo si hay ítems en carrito
   const handleCheckout = () => {
     if (cartItems.length === 0) {
       showCustomModal({
@@ -241,11 +265,12 @@ export default function Cart() {
     router.push('/checkout');
   };
 
+  // Aplicar un cupón seleccionado haciendo llamada a API
   const applyCoupon = async (couponId: number) => {
     try {
       const res = await api.post('/cart/apply-coupon', { coupon_id: couponId });
       if (res.data.success) {
-        await loadCart();
+        await loadCart(); // Recargar carrito para actualizar descuentos
         showCustomModal({
           type: 'success',
           title: '¡Cupón aplicado!',
@@ -265,6 +290,7 @@ export default function Cart() {
     }
   };
 
+  // Remover cupón aplicado del carrito
   const removeCoupon = async () => {
     try {
       await api.delete('/cart/coupon');
@@ -286,6 +312,7 @@ export default function Cart() {
     }
   };
 
+  // Mostrar indicador de carga mientras se obtiene información
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -294,6 +321,7 @@ export default function Cart() {
     );
   }
 
+  // Mostrar mensaje si carrito vacío
   if (cartItems.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -306,8 +334,10 @@ export default function Cart() {
     );
   }
 
+  // Renderizado principal del carrito
   return (
     <View style={styles.container}>
+      {/* Header con botón para volver y título */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
@@ -316,7 +346,9 @@ export default function Cart() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Scroll con los ítems del carrito */}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Sección para seleccionar dirección o retiro */}
         <TouchableOpacity
           style={styles.locationSection}
           onPress={() => router.push('/(tabs)/restaurants')}
@@ -331,7 +363,8 @@ export default function Cart() {
             </Text>
           </View>
         </TouchableOpacity>
-        
+
+        {/* Listado de productos en carrito */}
         {cartItems.map((item) => (
           <View key={item.id} style={styles.itemCard}>
             <Image
@@ -355,6 +388,7 @@ export default function Cart() {
               )}
             </View>
 
+            {/* Controles de cantidad (+/-) y eliminación */}
             <View style={styles.quantityControls}>
               <TouchableOpacity
                 onPress={() => updateQuantity(item.id, item.quantity - 1)}
@@ -383,6 +417,7 @@ export default function Cart() {
           </View>
         ))}
 
+        {/* Listado horizontal de cupones activos */}
         {coupons.length > 0 && (
           <View style={styles.couponsListSection}>
             <Text style={styles.couponsListTitle}>Cupones disponibles</Text>
@@ -414,6 +449,7 @@ export default function Cart() {
           </View>
         )}
 
+        {/* Banner para cupón aplicado */}
         {appliedCoupon && (
           <TouchableOpacity style={styles.appliedCouponBanner} onPress={removeCoupon}>
             <Text style={styles.promoIcon}>🏷️</Text>
@@ -425,6 +461,7 @@ export default function Cart() {
         )}
       </ScrollView>
 
+      {/* Footer con totales y botones para seguir comprando o seguir a checkout */}
       <View style={styles.footer}>
         <View style={styles.totalSection}>
           <Text style={styles.subtotalLabel}>Subtotal</Text>
@@ -465,6 +502,7 @@ export default function Cart() {
         </View>
       </View>
 
+      {/* Modal personalizado para mostrar mensajes */}
       <CustomModal
         visible={customModal.visible}
         type={customModal.type}
@@ -479,6 +517,7 @@ export default function Cart() {
   );
 }
 
+// Definición de estilos para la UI usando StyleSheet
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
