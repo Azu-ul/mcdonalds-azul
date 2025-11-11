@@ -6,6 +6,21 @@ import authorizeRole from '../middleware/role.js';
 
 const router = express.Router();
 
+// === OBTENER INGREDIENTES ===
+router.get('/ingredientes', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const [ingredients] = await pool.query(`
+      SELECT id, name, extra_price, is_required, max_quantity
+      FROM ingredients
+      ORDER BY name ASC
+    `);
+    res.json({ ingredients });
+  } catch (err) {
+    console.error('Error al obtener ingredientes:', err);
+    res.status(500).json({ error: 'Error al obtener ingredientes' });
+  }
+});
+
 // === USUARIOS ===
 router.get('/usuarios', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
@@ -840,35 +855,72 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
 // === CREAR PRODUCTO ===
 router.post('/productos', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    const { name, description, price, category_id, is_available = true } = req.body;
+    const {
+      name,
+      description,
+      price,
+      category_id,
+      image_url,  // ✅ AGREGAR
+      is_available = true,
+      ingredients = []  // ✅ AGREGAR
+    } = req.body;
 
     if (!name || !price || !category_id) {
       return res.status(400).json({ error: 'Nombre, precio y categoría son requeridos' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO products (name, description, category_id, base_price, is_available) VALUES (?, ?, ?, ?, ?)',
-      [name, description, category_id, price, is_available]
-    );
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    // Obtener producto creado
-    const [newProduct] = await pool.query(`
-      SELECT p.*, c.name AS category_name
-      FROM products p
-      INNER JOIN categories c ON p.category_id = c.id
-      WHERE p.id = ?
-    `, [result.insertId]);
+    try {
+      // Crear producto
+      const [result] = await connection.query(
+        `INSERT INTO products 
+         (name, description, category_id, base_price, image_url, is_available) 
+         VALUES (?, ?, ?, ?, ?, ?)`,  // ✅ AGREGAR image_url
+        [name, description, category_id, price, image_url || null, is_available]
+      );
 
-    const formatted = {
-      id: newProduct[0].id,
-      name: newProduct[0].name,
-      description: newProduct[0].description,
-      price: parseFloat(newProduct[0].base_price),
-      category: newProduct[0].category_name,
-      is_available: newProduct[0].is_available === 1
-    };
+      const productId = result.insertId;
 
-    res.status(201).json(formatted);
+      // ✅ Guardar ingredientes si los hay
+      if (ingredients && ingredients.length > 0) {
+        for (const ingredientId of ingredients) {
+          await connection.query(
+            `INSERT INTO product_ingredients (product_id, ingredient_id, is_default, is_removable)
+             VALUES (?, ?, 1, 1)`,
+            [productId, ingredientId]
+          );
+        }
+      }
+
+      await connection.commit();
+
+      // Obtener producto creado
+      const [newProduct] = await connection.query(`
+        SELECT p.*, c.name AS category_name
+        FROM products p
+        INNER JOIN categories c ON p.category_id = c.id
+        WHERE p.id = ?
+      `, [productId]);
+
+      const formatted = {
+        id: newProduct[0].id,
+        name: newProduct[0].name,
+        description: newProduct[0].description,
+        price: parseFloat(newProduct[0].base_price),
+        image_url: newProduct[0].image_url,  // ✅ AGREGAR
+        category: newProduct[0].category_name,
+        is_available: newProduct[0].is_available === 1
+      };
+
+      res.status(201).json(formatted);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   } catch (err) {
     console.error('Error al crear producto:', err);
     res.status(500).json({ error: 'Error al crear producto' });

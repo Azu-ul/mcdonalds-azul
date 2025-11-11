@@ -38,7 +38,7 @@ module.exports = {
         "expo-build-properties",
         {
           android: {
-            kotlinVersion: "1.9.0"
+            kotlinVersion: "2.0.0"
           }
         }
       ]
