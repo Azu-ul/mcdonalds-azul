@@ -21,6 +21,22 @@ router.get('/ingredientes', authenticateToken, authorizeRole('admin'), async (re
   }
 });
 
+// === OBTENER CATEGORÍAS ===
+router.get('/categorias', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const [categories] = await pool.query(`
+      SELECT id, name, icon, display_order
+      FROM categories
+      WHERE is_active = 1
+      ORDER BY display_order ASC, name ASC
+    `);
+    res.json({ categories });
+  } catch (err) {
+    console.error('Error al obtener categorías:', err);
+    res.status(500).json({ error: 'Error al obtener categorías' });
+  }
+});
+
 // === USUARIOS ===
 router.get('/usuarios', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
@@ -169,9 +185,15 @@ router.delete('/productos/:id', authenticateToken, authorizeRole('admin'), async
     await connection.beginTransaction();
 
     try {
-      // Eliminar dependencias
+      // Eliminar dependencias EN EL ORDEN CORRECTO
       await connection.query('DELETE FROM product_ingredients WHERE product_id = ?', [req.params.id]);
       await connection.query('DELETE FROM product_sizes WHERE product_id = ?', [req.params.id]);
+
+      // ✅ Eliminar de cart_items (NUEVO)
+      await connection.query('DELETE FROM cart_items WHERE product_id = ?', [req.params.id]);
+
+      // ✅ Eliminar de order_items (NUEVO)
+      await connection.query('DELETE FROM order_items WHERE product_id = ?', [req.params.id]);
 
       // Eliminar producto
       const [result] = await connection.query('DELETE FROM products WHERE id = ?', [req.params.id]);
