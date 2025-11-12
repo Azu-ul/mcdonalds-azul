@@ -150,6 +150,8 @@ const deliveryController = {
   },
 
   acceptOrder: async (req, res) => {
+      console.log("🟡 Entró a acceptOrder");
+  console.log("req.body:", req.body);
     let connection;
 
     try {
@@ -184,9 +186,11 @@ const deliveryController = {
           error: 'El pedido no está disponible o ya fue aceptado'
         });
       }
+      console.log('⚠️ Valores antes del UPDATE:', { driver_id, order_id });
 
       // 3. Actualizar el pedido usando el driver_id correcto
       const [updateResult] = await connection.execute(
+
         `UPDATE orders 
          SET driver_id = ?, 
              status = 'preparing',

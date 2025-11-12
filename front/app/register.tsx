@@ -413,7 +413,7 @@ export default function Register() {
           {/* Botón para ser repartidor */}
           <TouchableOpacity
             style={styles.deliveryButton}
-            onPress={() => router.push('/delivery-register')}
+            onPress={() => router.push('/delivery/delivery-register')}
           >
             <Text style={styles.deliveryButtonText}>¿Querés ser repartidor?</Text>
           </TouchableOpacity>
