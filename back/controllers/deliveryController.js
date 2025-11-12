@@ -127,7 +127,7 @@ const deliveryController = {
                 u.full_name as customer_name,
                 u.phone as customer_phone,
                 TIMESTAMPDIFF(MINUTE, o.created_at, NOW()) as minutes_ago,
-                o.estimated_delivery_time
+                o.estimated_delivery_time AS estimateddeliverytime
              FROM orders o
              JOIN restaurants r ON o.restaurant_id = r.id
              JOIN users u ON o.user_id = u.id
@@ -343,7 +343,7 @@ const deliveryController = {
           o.status,
           o.pickup_time,
           o.delivered_time,
-          o.estimated_delivery_time
+          o.estimated_delivery_time AS estimateddeliverytime
          FROM orders o
          JOIN restaurants r ON o.restaurant_id = r.id
          JOIN users u ON o.user_id = u.id

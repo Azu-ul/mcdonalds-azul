@@ -20,15 +20,15 @@ import CustomModal from "../components/CustomModal"; // Modal personalizado
 type Order = {
   id: number;
   total: number;
-  deliveryaddress: string;
-  restaurantname: string;
-  restaurantaddress: string;
-  customername: string;
+  delivery_address: string;
+  restaurant_name: string;
+  restaurant_address: string;
+  customer_name: string;
   customerphone: string;
   minutesago: number;
   estimateddeliverytime?: number;
   status?: string;
-  driverid?: number | null;
+  driver_id?: number | null;
   pickuptime?: string;
   deliveredtime?: string;
   itemscount?: number;
@@ -459,11 +459,11 @@ export default function DeliveryHome() {
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="business" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.restaurantname}</Text>
+                    <Text style={styles.orderText}>{order.restaurant_name}</Text>
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="location" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.deliveryaddress}</Text>
+                    <Text style={styles.orderText}>{order.delivery_address}</Text>
                   </View>
                   <View style={styles.orderDetails}>
                     <View style={styles.detailItem}>
@@ -516,16 +516,16 @@ export default function DeliveryHome() {
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="business" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.restaurantname}</Text>
+                    <Text style={styles.orderText}>{order.restaurant_name}</Text>
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="location" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.deliveryaddress}</Text>
+                    <Text style={styles.orderText}>{order.delivery_address}</Text>
                   </View>
                   <View style={styles.orderDetails}>
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Cliente</Text>
-                      <Text style={styles.detailValue}>{order.customername}</Text>
+                      <Text style={styles.detailValue}>{order.customer_name}</Text>
                     </View>
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Teléfono</Text>
@@ -587,11 +587,11 @@ export default function DeliveryHome() {
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="business" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.restaurantname}</Text>
+                    <Text style={styles.orderText}>{order.restaurant_name}</Text>
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="location" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.deliveryaddress}</Text>
+                    <Text style={styles.orderText}>{order.delivery_address}</Text>
                   </View>
                   <View style={styles.historyFooter}>
                     <Text style={styles.historyTotal}>{order.total}</Text>
@@ -617,14 +617,14 @@ export default function DeliveryHome() {
 
             <View style={styles.modalSection}>
               <Text style={styles.modalSectionTitle}>Retiro</Text>
-              <Text style={styles.modalText}>{selectedOrder?.restaurantname}</Text>
-              <Text style={styles.modalSubtext}>{selectedOrder?.restaurantaddress}</Text>
+              <Text style={styles.modalText}>{selectedOrder?.restaurant_name}</Text>
+              <Text style={styles.modalSubtext}>{selectedOrder?.restaurant_address}</Text>
             </View>
 
             <View style={styles.modalSection}>
               <Text style={styles.modalSectionTitle}>Entrega</Text>
-              <Text style={styles.modalText}>{selectedOrder?.deliveryaddress}</Text>
-              <Text style={styles.modalSubtext}>Cliente: {selectedOrder?.customername}</Text>
+              <Text style={styles.modalText}>{selectedOrder?.delivery_address}</Text>
+              <Text style={styles.modalSubtext}>Cliente: {selectedOrder?.customer_name}</Text>
             </View>
 
             <View style={styles.modalDetail}>
