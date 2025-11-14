@@ -20,15 +20,15 @@ import CustomModal from "../components/CustomModal"; // Modal personalizado
 type Order = {
   id: number;
   total: number;
-  delivery_address: string;
-  restaurant_name: string;
-  restaurant_address: string;
-  customer_name: string;
+  deliveryaddress: string;
+  restaurantname: string;
+  restaurantaddress: string;
+  customername: string;
   customerphone: string;
   minutesago: number;
   estimateddeliverytime?: number;
   status?: string;
-  driver_id?: number | null;
+  driverid?: number | null;
   pickuptime?: string;
   deliveredtime?: string;
   itemscount?: number;
@@ -182,7 +182,7 @@ export default function DeliveryHome() {
       setActionLoading(true);
       setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId)); // Remover pedido de disponibles
       setModalVisible(false); // Cerrar modal
-      await api.post("delivery/orders/accept", { order_id: orderId });
+      await api.post("delivery/orders/accept", { orderid: orderId });
       showCustomModal({
         type: "success",
         title: "Éxito",
@@ -207,8 +207,7 @@ export default function DeliveryHome() {
   const handlePickupOrder = async (orderId: number) => {
     try {
       setActionLoading(true);
-      await api.post("delivery/orders/pickup", { order_id: orderId });
-
+      await api.post("delivery/orders/pickup", { orderid: orderId });
       showCustomModal({
         type: "success",
         title: "Éxito",
@@ -232,7 +231,7 @@ export default function DeliveryHome() {
   const handleDeliverOrder = async (orderId: number) => {
     try {
       setActionLoading(true);
-      await api.post("delivery/orders/deliver", { order_id: orderId });
+      await api.post("delivery/orders/deliver", { orderid: orderId });
       showCustomModal({
         type: "success",
         title: "Entregado!",
@@ -260,8 +259,7 @@ export default function DeliveryHome() {
       setAvailableOrders((prev) => prev.filter((order) => order.id !== orderId)); // Eliminar pedido rechazado
       setModalVisible(false);
       setSelectedOrder(null);
-      await api.post("delivery/orders/reject", { order_id: orderId });
-
+      await api.post("delivery/orders/reject", { orderid: orderId });
       showCustomModal({
         type: "info",
         title: "Rechazado",
@@ -459,11 +457,11 @@ export default function DeliveryHome() {
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="business" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.restaurant_name}</Text>
+                    <Text style={styles.orderText}>{order.restaurantname}</Text>
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="location" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.delivery_address}</Text>
+                    <Text style={styles.orderText}>{order.deliveryaddress}</Text>
                   </View>
                   <View style={styles.orderDetails}>
                     <View style={styles.detailItem}>
@@ -516,16 +514,16 @@ export default function DeliveryHome() {
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="business" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.restaurant_name}</Text>
+                    <Text style={styles.orderText}>{order.restaurantname}</Text>
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="location" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.delivery_address}</Text>
+                    <Text style={styles.orderText}>{order.deliveryaddress}</Text>
                   </View>
                   <View style={styles.orderDetails}>
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Cliente</Text>
-                      <Text style={styles.detailValue}>{order.customer_name}</Text>
+                      <Text style={styles.detailValue}>{order.customername}</Text>
                     </View>
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Teléfono</Text>
@@ -587,11 +585,11 @@ export default function DeliveryHome() {
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="business" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.restaurant_name}</Text>
+                    <Text style={styles.orderText}>{order.restaurantname}</Text>
                   </View>
                   <View style={styles.orderInfo}>
                     <Ionicons name="location" size={16} color="#666" />
-                    <Text style={styles.orderText}>{order.delivery_address}</Text>
+                    <Text style={styles.orderText}>{order.deliveryaddress}</Text>
                   </View>
                   <View style={styles.historyFooter}>
                     <Text style={styles.historyTotal}>{order.total}</Text>
@@ -617,14 +615,14 @@ export default function DeliveryHome() {
 
             <View style={styles.modalSection}>
               <Text style={styles.modalSectionTitle}>Retiro</Text>
-              <Text style={styles.modalText}>{selectedOrder?.restaurant_name}</Text>
-              <Text style={styles.modalSubtext}>{selectedOrder?.restaurant_address}</Text>
+              <Text style={styles.modalText}>{selectedOrder?.restaurantname}</Text>
+              <Text style={styles.modalSubtext}>{selectedOrder?.restaurantaddress}</Text>
             </View>
 
             <View style={styles.modalSection}>
               <Text style={styles.modalSectionTitle}>Entrega</Text>
-              <Text style={styles.modalText}>{selectedOrder?.delivery_address}</Text>
-              <Text style={styles.modalSubtext}>Cliente: {selectedOrder?.customer_name}</Text>
+              <Text style={styles.modalText}>{selectedOrder?.deliveryaddress}</Text>
+              <Text style={styles.modalSubtext}>Cliente: {selectedOrder?.customername}</Text>
             </View>
 
             <View style={styles.modalDetail}>

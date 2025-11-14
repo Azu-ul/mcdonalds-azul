@@ -430,9 +430,8 @@ router.delete('/restaurantes/:id', authenticateToken, authorizeRole('admin'), as
 router.get('/cupones', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const [coupons] = await pool.execute(`
-      SELECT id, title, description, discount_type, discount_value,
-             min_purchase, max_discount, image_url, start_date, end_date,
-             is_active, usage_limit, used_count, created_at
+      SELECT id, title, description, discount_value, min_purchase, max_discount,
+             image_url, start_date, end_date, is_active, usage_limit, used_count, created_at
       FROM coupons
       ORDER BY created_at DESC
     `);
@@ -443,18 +442,27 @@ router.get('/cupones', authenticateToken, authorizeRole('admin'), async (req, re
   }
 });
 
-router.delete('/cupones/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
+
+router.get('/cupones/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    const [result] = await pool.execute('DELETE FROM coupons WHERE id = ?', [req.params.id]);
-    if (result.affectedRows === 0) {
+    const [coupon] = await pool.query(`
+      SELECT id, title, description, discount_value, min_purchase, max_discount,
+             image_url, start_date, end_date, is_active, usage_limit, used_count, created_at
+      FROM coupons
+      WHERE id = ?
+    `, [req.params.id]);
+
+    if (coupon.length === 0) {
       return res.status(404).json({ error: 'Cupón no encontrado' });
     }
-    res.json({ message: 'Cupón eliminado' });
+
+    res.json(coupon[0]);
   } catch (err) {
-    console.error('Error al eliminar cupón:', err);
-    res.status(500).json({ error: 'Error al eliminar cupón' });
+    console.error('Error al obtener cupón:', err);
+    res.status(500).json({ error: 'Error al obtener cupón' });
   }
 });
+
 
 // === FLYERS ===
 router.get('/flyers', authenticateToken, authorizeRole('admin'), async (req, res) => {
@@ -515,28 +523,6 @@ router.get('/restaurantes/:id', authenticateToken, authorizeRole('admin'), async
   } catch (err) {
     console.error('Error al obtener restaurante:', err);
     res.status(500).json({ error: 'Error al obtener restaurante' });
-  }
-});
-
-// === OBTENER CUPÓN INDIVIDUAL ===
-router.get('/cupones/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
-  try {
-    const [coupon] = await pool.query(`
-      SELECT id, code, title, description, discount_type, discount_value,
-             min_purchase, max_discount, image_url, start_date, end_date,
-             is_active, usage_limit, used_count, created_at
-      FROM coupons
-      WHERE id = ?
-    `, [req.params.id]);
-
-    if (coupon.length === 0) {
-      return res.status(404).json({ error: 'Cupón no encontrado' });
-    }
-
-    res.json(coupon[0]);
-  } catch (err) {
-    console.error('Error al obtener cupón:', err);
-    res.status(500).json({ error: 'Error al obtener cupón' });
   }
 });
 
@@ -647,78 +633,45 @@ router.put('/cupones/:id', authenticateToken, authorizeRole('admin'), async (req
   try {
     const couponId = parseInt(req.params.id);
     const {
-      title, code, description, discount_type, discount_value,
-      min_purchase, max_discount, start_date, end_date, is_active, usage_limit
+      title,
+      description,
+      discount_value,
+      min_purchase,
+      max_discount,
+      start_date,
+      end_date,
+      is_active,
+      usage_limit
     } = req.body;
 
-    // Verificar que el cupón existe
-    const [coupon] = await pool.query('SELECT id FROM coupons WHERE id = ?', [couponId]);
-    if (coupon.length === 0) {
+    const [exists] = await pool.query('SELECT id FROM coupons WHERE id = ?', [couponId]);
+    if (exists.length === 0) {
       return res.status(404).json({ error: 'Cupón no encontrado' });
     }
 
-    // Actualizar cupón
     const updateFields = [];
     const updateValues = [];
 
-    if (title !== undefined) {
-      updateFields.push('title = ?');
-      updateValues.push(title);
-    }
-    if (code !== undefined) {
-      updateFields.push('code = ?');
-      updateValues.push(code);
-    }
-    if (description !== undefined) {
-      updateFields.push('description = ?');
-      updateValues.push(description);
-    }
-    if (discount_type !== undefined) {
-      updateFields.push('discount_type = ?');
-      updateValues.push(discount_type);
-    }
-    if (discount_value !== undefined) {
-      updateFields.push('discount_value = ?');
-      updateValues.push(discount_value);
-    }
-    if (min_purchase !== undefined) {
-      updateFields.push('min_purchase = ?');
-      updateValues.push(min_purchase);
-    }
-    if (max_discount !== undefined) {
-      updateFields.push('max_discount = ?');
-      updateValues.push(max_discount);
-    }
-    if (start_date !== undefined) {
-      updateFields.push('start_date = ?');
-      updateValues.push(start_date);
-    }
-    if (end_date !== undefined) {
-      updateFields.push('end_date = ?');
-      updateValues.push(end_date);
-    }
-    if (is_active !== undefined) {
-      updateFields.push('is_active = ?');
-      updateValues.push(is_active);
-    }
-    if (usage_limit !== undefined) {
-      updateFields.push('usage_limit = ?');
-      updateValues.push(usage_limit);
-    }
-
-    if (updateFields.length === 0) {
-      return res.status(400).json({ error: 'No hay campos para actualizar' });
-    }
+    if (title !== undefined) { updateFields.push('title = ?'); updateValues.push(title); }
+    if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description); }
+    if (discount_value !== undefined) { updateFields.push('discount_value = ?'); updateValues.push(discount_value); }
+    if (min_purchase !== undefined) { updateFields.push('min_purchase = ?'); updateValues.push(min_purchase); }
+    if (max_discount !== undefined) { updateFields.push('max_discount = ?'); updateValues.push(max_discount); }
+    if (start_date !== undefined) { updateFields.push('start_date = ?'); updateValues.push(start_date); }
+    if (end_date !== undefined) { updateFields.push('end_date = ?'); updateValues.push(end_date); }
+    if (is_active !== undefined) { updateFields.push('is_active = ?'); updateValues.push(is_active); }
+    if (usage_limit !== undefined) { updateFields.push('usage_limit = ?'); updateValues.push(usage_limit); }
 
     updateValues.push(couponId);
 
-    const query = `UPDATE coupons SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-    await pool.query(query, updateValues);
+    await pool.query(
+      `UPDATE coupons SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      updateValues
+    );
 
-    // Obtener cupón actualizado
     const [updatedCoupon] = await pool.query(`
-      SELECT id, title, code, description, discount_type, discount_value,
-             min_purchase, max_discount, start_date, end_date, is_active, usage_limit
+      SELECT id, title, description, discount_value, min_purchase, max_discount,
+             image_url, start_date, end_date, is_active, usage_limit
       FROM coupons WHERE id = ?
     `, [couponId]);
 
@@ -728,6 +681,21 @@ router.put('/cupones/:id', authenticateToken, authorizeRole('admin'), async (req
     res.status(500).json({ error: 'Error al actualizar cupón' });
   }
 });
+
+
+router.delete('/cupones/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM coupons WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Cupón no encontrado' });
+    }
+    res.json({ message: 'Cupón eliminado' });
+  } catch (err) {
+    console.error('Error al eliminar cupón:', err);
+    res.status(500).json({ error: 'Error al eliminar cupón' });
+  }
+});
+
 
 // === EDITAR FLYER ===
 router.put('/flyers/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
@@ -998,9 +966,7 @@ router.post('/cupones', authenticateToken, authorizeRole('admin'), async (req, r
   try {
     const {
       title,
-      code,
       description = '',
-      discount_type = 'percentage',
       discount_value,
       min_purchase = 0,
       max_discount = null,
@@ -1010,38 +976,23 @@ router.post('/cupones', authenticateToken, authorizeRole('admin'), async (req, r
       usage_limit = null
     } = req.body;
 
-    // Validaciones
-    if (!title || !code || !discount_value) {
-      return res.status(400).json({ error: 'Título, código y valor de descuento son requeridos' });
-    }
-
-    // Verificar que el código no exista
-    const [existingCoupon] = await pool.query('SELECT id FROM coupons WHERE code = ?', [code]);
-    if (existingCoupon.length > 0) {
-      return res.status(400).json({ error: 'El código ya está en uso' });
-    }
-
-    // Validar tipo de descuento
-    if (!['percentage', 'fixed'].includes(discount_type)) {
-      return res.status(400).json({ error: 'Tipo de descuento debe ser "percentage" o "fixed"' });
+    if (!title || !discount_value) {
+      return res.status(400).json({ error: 'Título y valor de descuento son requeridos' });
     }
 
     const [result] = await pool.query(
       `INSERT INTO coupons 
-       (title, code, description, discount_type, discount_value, min_purchase, 
-        max_discount, start_date, end_date, is_active, usage_limit) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (title, description, discount_value, min_purchase, max_discount, start_date, end_date, is_active, usage_limit) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        title, code, description, discount_type, discount_value, min_purchase,
-        max_discount, start_date, end_date, is_active, usage_limit
+        title, description, discount_value, min_purchase, max_discount,
+        start_date, end_date, is_active, usage_limit
       ]
     );
 
-    // Obtener cupón creado
     const [newCoupon] = await pool.query(`
-      SELECT id, title, code, description, discount_type, discount_value,
-             min_purchase, max_discount, image_url, start_date, end_date,
-             is_active, usage_limit, used_count, created_at
+      SELECT id, title, description, discount_value, min_purchase, max_discount,
+             image_url, start_date, end_date, is_active, usage_limit, used_count, created_at
       FROM coupons WHERE id = ?
     `, [result.insertId]);
 
@@ -1051,6 +1002,7 @@ router.post('/cupones', authenticateToken, authorizeRole('admin'), async (req, r
     res.status(500).json({ error: 'Error al crear cupón' });
   }
 });
+
 
 // === CREAR FLYER ===
 router.post('/flyers', authenticateToken, authorizeRole('admin'), async (req, res) => {

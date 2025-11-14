@@ -146,7 +146,7 @@ const AdminScreen = () => {
             confirmText: 'Eliminar',
             cancelText: 'Cancelar',
             showCancel: true,
-            onConfirm: confirmDelete
+            onConfirm: () => confirmDelete() // ✅ Sin parámetros
         });
     };
 
@@ -156,29 +156,43 @@ const AdminScreen = () => {
 
         const itemName = getItemDisplayName(itemToDelete);
 
+        // ✅ Cerrar modal inmediatamente
+        setModal(prev => ({ ...prev, visible: false }));
+
         try {
             await api.delete(`/admin/${activeTab}/${itemToDelete.id}`);
 
-            showModal({
-                type: 'success',
-                title: 'Éxito',
-                message: `${itemName} eliminado correctamente`,
-                showCancel: false,
-                confirmText: 'Aceptar'
-            });
+            // Esperar un momento antes de mostrar el modal de éxito
+            setTimeout(() => {
+                showModal({
+                    type: 'success',
+                    title: 'Éxito',
+                    message: `${itemName} eliminado correctamente`,
+                    showCancel: false,
+                    confirmText: 'Aceptar',
+                    onConfirm: () => {
+                        hideModal();
+                        fetchData();
+                    }
+                });
+            }, 100);
 
-            fetchData(); // Recargar datos
         } catch (err: any) {
             console.error('Delete error:', err);
             const errorMessage = err.response?.data?.error || 'No se pudo eliminar';
 
-            showModal({
-                type: 'error',
-                title: 'Error',
-                message: errorMessage,
-                showCancel: false,
-                confirmText: 'Aceptar'
-            });
+            setTimeout(() => {
+                showModal({
+                    type: 'error',
+                    title: 'Error',
+                    message: errorMessage,
+                    showCancel: false,
+                    confirmText: 'Aceptar',
+                    onConfirm: () => hideModal()
+                });
+            }, 100);
+        } finally {
+            setItemToDelete(null);
         }
     };
 
