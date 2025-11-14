@@ -148,6 +148,89 @@ router.delete('/usuarios/:id', authenticateToken, authorizeRole('admin'), async 
   }
 });
 
+router.delete('/repartidores/:id', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    // No permitir eliminarse a sí mismo
+    if (userId === req.user.id) {
+      return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+    }
+
+    // Verificar que el usuario existe
+    const [user] = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);
+    if (user.length === 0) {
+      return res.status(404).json({ error: 'Repartidor no encontrado' });
+    }
+
+    // Verificar que el usuario tiene el rol de repartidor
+    const [userRoles] = await pool.query(
+      `SELECT r.id, r.name FROM user_roles ur
+       INNER JOIN roles r ON ur.role_id = r.id
+       WHERE ur.user_id = ?`,
+      [userId]
+    );
+
+    const hasRepartidorRole = userRoles.some(r => r.name === 'repartidor');
+
+    if (!hasRepartidorRole) {
+      // Opcional: podrías permitir eliminarlo igual si tiene otros roles,
+      // pero para mantener la lógica de "eliminar repartidor", lo restringimos.
+      // Si solo quieres validar que sea un repartidor, esto está bien.
+      return res.status(400).json({ error: 'El usuario no es un repartidor' });
+    }
+
+    // Verificar que no sea admin (por seguridad adicional, aunque en teoría un repartidor no debería ser admin)
+    const isAdmin = userRoles.some(r => r.name === 'admin');
+    if (isAdmin) {
+      const [adminCount] = await pool.query(
+        `SELECT COUNT(*) AS total FROM user_roles ur
+         INNER JOIN roles r ON ur.role_id = r.id
+         WHERE r.name = 'admin'`
+      );
+      if (adminCount[0].total <= 1) {
+        return res.status(400).json({ error: 'No se puede eliminar al último administrador' });
+      }
+    }
+
+    // Usar transacción para eliminar dependencias
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Eliminar dependencias específicas de repartidores (si las hay)
+      // Ej: DELETE FROM delivery_assignments WHERE delivery_person_id = userId;
+      // Asegúrate de eliminar cualquier relación específica de repartidor aquí.
+
+      // Eliminar el rol de repartidor (o todos los roles si es solo repartidor y quieres eliminarlo completamente)
+      // Opción 1: Eliminar solo el rol de repartidor (si puede tener otros roles)
+      // await connection.query('DELETE FROM user_roles WHERE user_id = ? AND role_id = ?', [userId, repartidorRoleId]);
+
+      // Opción 2: Eliminar TODOS los roles (asumiendo que si se elimina desde 'repartidores', se va completamente)
+      await connection.query('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+
+      // Eliminar otros datos relacionados (oauth, sesiones, etc.)
+      await connection.query('DELETE FROM oauth_tokens WHERE user_id = ?', [userId]);
+      await connection.query('DELETE FROM sessions WHERE user_id = ?', [userId]);
+      await connection.query('DELETE FROM user_coupons WHERE user_id = ?', [userId]);
+
+      // Finalmente eliminar el usuario
+      await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+
+      await connection.commit();
+      res.json({ message: 'Repartidor eliminado exitosamente' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error('Error al eliminar repartidor:', err);
+    res.status(500).json({ error: 'Error al eliminar repartidor' });
+  }
+});
+
 // === PRODUCTOS ===
 // Reutilizamos la lógica de /api/products, pero sin filtrar por is_available
 router.get('/productos', authenticateToken, authorizeRole('admin'), async (req, res) => {
