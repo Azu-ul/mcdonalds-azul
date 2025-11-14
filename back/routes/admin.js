@@ -883,18 +883,42 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
       return res.status(400).json({ error: 'El email ya está registrado' });
     }
 
+    // ✅ Generar username automáticamente si no se envía
+    // Opcional: puedes usar el email como base, o una combinación de nombre y número
+    let username = req.body.username;
+    if (!username) {
+      // Opción A: usar parte del email
+      username = email.split('@')[0]; // Ej: "juan@ejemplo.com" -> "juan"
+      // Opción B: usar nombre completo y añadir número si ya existe
+      // username = full_name.toLowerCase().replace(/\s+/g, '');
+    }
+
+    // ✅ Verificar que el username no exista (si se genera o se envía)
+    const [existingUsername] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+    if (existingUsername.length > 0) {
+      // Si se generó automáticamente y ya existe, podrías añadir un número
+      let counter = 1;
+      let newUsername = username;
+      while ((await pool.query('SELECT id FROM users WHERE username = ?', [newUsername]))[0].length > 0) {
+        newUsername = `${username}${counter}`;
+        counter++;
+      }
+      username = newUsername;
+    }
+
     // ✅ Hashear la contraseña
-    const saltRounds = 10; // Número de rondas para el salt, 10 es un valor estándar
+    const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();
 
     try {
-      // ✅ Insertar el hash en lugar de la contraseña en texto plano
+      // ✅ Incluir username en la inserción
       const [result] = await connection.query(
-        'INSERT INTO users (full_name, email, phone, password_hash, auth_provider) VALUES (?, ?, ?, ?, ?)',
-        [full_name, email, phone, hashedPassword, 'local']
+        // Asegúrate de que 'phone' también esté listo para aceptar NULL si no se envía
+        'INSERT INTO users (full_name, email, phone, username, password_hash, auth_provider) VALUES (?, ?, ?, ?, ?, ?)',
+        [full_name, email, phone || null, username, hashedPassword, 'local']
       );
 
       const userId = result.insertId;
@@ -912,11 +936,11 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
 
       await connection.commit();
 
-      // Devolver usuario creado (no devuelvas la contraseña ni el hash)
+      // Devolver usuario creado
       const [newUser] = await pool.query(`
         SELECT id, username, email, full_name, phone, profile_image_url 
         FROM users WHERE id = ?
-    `, [userId]);
+      `, [userId]);
 
       res.status(201).json(newUser[0]);
     } catch (error) {
@@ -926,7 +950,7 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
       connection.release();
     }
   } catch (err) {
-    console.error('Error al crear usuario:', err); // Esto te ayudará a ver el error real en la consola del servidor
+    console.error('Error al crear usuario:', err);
     res.status(500).json({ error: 'Error al crear usuario' });
   }
 });
