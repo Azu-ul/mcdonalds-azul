@@ -150,8 +150,8 @@ const deliveryController = {
   },
 
   acceptOrder: async (req, res) => {
-      console.log("🟡 Entró a acceptOrder");
-  console.log("req.body:", req.body);
+    console.log("🟡 Entró a acceptOrder");
+    console.log("req.body:", req.body);
     let connection;
 
     try {
@@ -241,6 +241,7 @@ const deliveryController = {
   },
 
   // En deliveryController.js - función rejectOrder mejorada
+  // En deliveryController.js - función rejectOrder original con validación
   rejectOrder: async (req, res) => {
     let connection;
 
@@ -248,10 +249,23 @@ const deliveryController = {
       connection = await pool.getConnection();
       await connection.beginTransaction();
 
+      // ✅ Obtener order_id de req.body
       const { order_id } = req.body;
       const user_id = req.user.id;
 
-      console.log('🚫 Rechazando pedido:', { order_id, user_id });
+      // ✅ Validar que order_id sea un número
+      if (!order_id || isNaN(parseInt(order_id))) {
+        await connection.rollback();
+        console.log('❌ order_id inválido recibido en body:', req.body);
+        return res.status(400).json({
+          error: 'ID de pedido inválido o no proporcionado'
+        });
+      }
+
+      // Convertir a número entero para usarlo en la DB
+      const orderIdInt = parseInt(order_id);
+
+      console.log('🚫 Rechazando pedido:', { order_id: orderIdInt, user_id });
 
       // 1. Verificar que el usuario está registrado como repartidor
       const driver_id = await getDriverId(user_id, connection);
@@ -267,7 +281,7 @@ const deliveryController = {
         `SELECT id, status, driver_id 
              FROM orders 
              WHERE id = ? AND status = 'confirmed' AND driver_id IS NULL`,
-        [order_id]
+        [orderIdInt] // <--- Usar el número entero
       );
 
       if (orders.length === 0) {
@@ -278,32 +292,23 @@ const deliveryController = {
       }
 
       // 3. 👇 REGISTRAR EL RECHAZO EN UNA NUEVA TABLA
-      // Primero crea la tabla si no existe:
-      await connection.execute(`
-            CREATE TABLE IF NOT EXISTS order_rejections (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                order_id INT NOT NULL,
-                driver_id INT NOT NULL,
-                rejected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-                FOREIGN KEY (driver_id) REFERENCES delivery_drivers(id) ON DELETE CASCADE
-            )
-        `);
+      // La creación de la tabla debería hacerse en la inicialización de la DB, no en cada llamada
+      // await connection.execute(...); // <--- Comenta esta línea
 
       // Insertar el rechazo
       await connection.execute(
         `INSERT INTO order_rejections (order_id, driver_id) VALUES (?, ?)`,
-        [order_id, driver_id]
+        [orderIdInt, driver_id] // <--- Usar el número entero
       );
 
       await connection.commit();
 
-      console.log('✅ Pedido rechazado y registrado:', order_id);
+      console.log('✅ Pedido rechazado y registrado:', orderIdInt);
 
       res.json({
         success: true,
         message: 'Pedido rechazado correctamente',
-        order_id: order_id
+        order_id: orderIdInt // <--- Devuelve un número
       });
 
     } catch (error) {
