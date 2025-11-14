@@ -3,6 +3,7 @@ import express from 'express';
 import pool from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import authorizeRole from '../middleware/role.js';
+import bcrypt from 'bcrypt';
 
 const router = express.Router();
 
@@ -866,6 +867,7 @@ router.put('/flyers/:id', authenticateToken, authorizeRole('admin'), async (req,
 });
 
 // === CREAR USUARIO ===
+// === CREAR USUARIO ===
 router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const { full_name, email, phone, password, role } = req.body;
@@ -881,14 +883,18 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
       return res.status(400).json({ error: 'El email ya está registrado' });
     }
 
+    // ✅ Hashear la contraseña
+    const saltRounds = 10; // Número de rondas para el salt, 10 es un valor estándar
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     const connection = await pool.getConnection();
     await connection.beginTransaction();
 
     try {
-      // Crear usuario
+      // ✅ Insertar el hash en lugar de la contraseña en texto plano
       const [result] = await connection.query(
         'INSERT INTO users (full_name, email, phone, password_hash, auth_provider) VALUES (?, ?, ?, ?, ?)',
-        [full_name, email, phone, password, 'local'] // En producción, hashear la contraseña
+        [full_name, email, phone, hashedPassword, 'local']
       );
 
       const userId = result.insertId;
@@ -906,11 +912,11 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
 
       await connection.commit();
 
-      // Devolver usuario creado
+      // Devolver usuario creado (no devuelvas la contraseña ni el hash)
       const [newUser] = await pool.query(`
         SELECT id, username, email, full_name, phone, profile_image_url 
         FROM users WHERE id = ?
-      `, [userId]);
+    `, [userId]);
 
       res.status(201).json(newUser[0]);
     } catch (error) {
@@ -920,7 +926,7 @@ router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, 
       connection.release();
     }
   } catch (err) {
-    console.error('Error al crear usuario:', err);
+    console.error('Error al crear usuario:', err); // Esto te ayudará a ver el error real en la consola del servidor
     res.status(500).json({ error: 'Error al crear usuario' });
   }
 });
