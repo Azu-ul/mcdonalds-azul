@@ -1,7 +1,10 @@
 // simulationController.js - Versión completa corregida
 import pool from '../db.js';
 
+
 const simulationController = {
+
+    
     // Generar pedido simulado
     generateSimulatedOrder: async (req, res) => {
         const connection = await pool.getConnection();

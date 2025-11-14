@@ -9,8 +9,12 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Middleware para verificar desarrollo
 const developmentOnly = (req, res, next) => {
-  if (!isDevelopment) {
-    return res.status(403).json({ error: 'Simulación solo disponible en desarrollo' });
+  // Permitir en desarrollo O si está explícitamente habilitado
+  const allowSimulation = process.env.NODE_ENV === 'development' ||
+    process.env.ALLOW_SIMULATION === 'true';
+
+  if (!allowSimulation) {
+    return res.status(403).json({ error: 'Simulación no disponible' });
   }
   next();
 };

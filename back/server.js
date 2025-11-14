@@ -53,9 +53,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/roles', roleRoutes);
 
-if (process.env.NODE_ENV === 'development') {
-  app.use('/api', simulationRoutes);
-}
+app.use('/api/simulation', simulationRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
