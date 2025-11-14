@@ -866,7 +866,91 @@ router.put('/flyers/:id', authenticateToken, authorizeRole('admin'), async (req,
   }
 });
 
-// === CREAR USUARIO ===
+// === CREAR REPARTIDOR ===
+// Este endpoint es específico para crear usuarios con rol de repartidor
+router.post('/repartidores', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    // Reutiliza la lógica de validación y creación de usuario, pero forzando el rol 'repartidor'
+    const { full_name, email, phone, password, username: inputUsername } = req.body; // No esperamos 'role' aquí, o lo ignoramos
+
+    // Validaciones básicas
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    }
+
+    // Verificar que el email no exista
+    const [existingUser] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existingUser.length > 0) {
+      return res.status(400).json({ error: 'El email ya está registrado' });
+    }
+
+    // ✅ Generar username automáticamente si no se envía (misma lógica que en POST /usuarios)
+    let username = inputUsername;
+    if (!username) {
+      username = email.split('@')[0];
+    }
+
+    const [existingUsername] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+    if (existingUsername.length > 0) {
+      let counter = 1;
+      let newUsername = username;
+      while ((await pool.query('SELECT id FROM users WHERE username = ?', [newUsername]))[0].length > 0) {
+        newUsername = `${username}${counter}`;
+        counter++;
+      }
+      username = newUsername;
+    }
+
+    // ✅ Hashear la contraseña
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // ✅ Insertar el usuario (misma lógica que POST /usuarios)
+      const [result] = await connection.query(
+        'INSERT INTO users (full_name, email, phone, username, password_hash, auth_provider) VALUES (?, ?, ?, ?, ?, ?)',
+        [full_name, email, phone || null, username, hashedPassword, 'local']
+      );
+
+      const userId = result.insertId;
+
+      // ✅ Asignar *solo* el rol de 'repartidor'
+      const [roleResult] = await connection.query('SELECT id FROM roles WHERE name = ?', ['repartidor']);
+      if (roleResult.length === 0) {
+        // Si el rol 'repartidor' no existe, lanzar un error
+        await connection.rollback();
+        return res.status(500).json({ error: 'Rol "repartidor" no encontrado en la base de datos.' });
+      }
+
+      await connection.query(
+        'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
+        [userId, roleResult[0].id]
+      );
+
+      await connection.commit();
+
+      // Devolver usuario creado
+      const [newRepartidor] = await pool.query(`
+        SELECT id, username, email, full_name, phone, profile_image_url 
+        FROM users WHERE id = ?
+      `, [userId]);
+
+      res.status(201).json(newRepartidor[0]);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error('Error al crear repartidor:', err);
+    res.status(500).json({ error: 'Error al crear repartidor' });
+  }
+});
+
 // === CREAR USUARIO ===
 router.post('/usuarios', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
@@ -1166,5 +1250,6 @@ router.post('/flyers', authenticateToken, authorizeRole('admin'), async (req, re
     res.status(500).json({ error: 'Error al crear flyer' });
   }
 });
+
 
 export default router;
