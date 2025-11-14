@@ -54,7 +54,7 @@ app.use('/api/delivery', deliveryRoutes);
 app.use('/api/roles', roleRoutes);
 
 if (process.env.NODE_ENV === 'development') {
-  app.use('/api/simulation', simulationRoutes);
+  app.use('/api', simulationRoutes);
 }
 
 app.get('/health', (req, res) => {

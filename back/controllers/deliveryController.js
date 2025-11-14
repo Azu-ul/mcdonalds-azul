@@ -480,10 +480,20 @@ const deliveryController = {
   },
 
   // Obtener historial de pedidos del repartidor
+  // Obtener historial de pedidos del repartidor
   getOrderHistory: async (req, res) => {
     try {
       const user_id = req.user.id;
-      const { page = 1, limit = 10 } = req.query;
+      const { page: pageStr = '1', limit: limitStr = '10' } = req.query; // Obtener como strings
+
+      // ✅ Validar y convertir page y limit a números enteros
+      const page = parseInt(pageStr, 10);
+      const limit = parseInt(limitStr, 10);
+
+      if (isNaN(page) || isNaN(limit) || page < 1 || limit < 1) {
+        return res.status(400).json({ error: 'Parámetros page y limit inválidos' });
+      }
+
       const offset = (page - 1) * limit;
 
       // Obtener el driver_id del usuario
@@ -494,6 +504,7 @@ const deliveryController = {
         });
       }
 
+      // CONSULTA PRINCIPAL - Ahora con valores garantizados como números
       const [orders] = await pool.execute(
         `SELECT 
           o.id,
@@ -512,21 +523,22 @@ const deliveryController = {
          AND o.status = 'completed'
          GROUP BY o.id
          ORDER BY o.delivered_time DESC
-         LIMIT ? OFFSET ?`,
-        [driver_id, parseInt(limit), offset]
+         LIMIT ? OFFSET ?`, // <--- 3 placeholders
+        [driver_id, limit, offset] // <--- 3 valores numéricos
       );
 
+      // CONSULTA PARA TOTAL
       const [total] = await pool.execute(
         `SELECT COUNT(*) as total FROM orders 
          WHERE driver_id = ? AND status = 'completed'`,
-        [driver_id]
+        [driver_id] // <--- 1 valor
       );
 
       res.json({
         orders,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: page, // <--- Enviar los valores ya parseados
+          limit: limit,
           total: total[0].total
         }
       });
